@@ -2,8 +2,11 @@ package com.examsaathi.service;
 
 import com.examsaathi.dto.request.StudyLogRequest;
 import com.examsaathi.dto.request.ProgressUpdateRequest;
+import com.examsaathi.dto.response.ChapterWithProgressResponse;
 import com.examsaathi.dto.response.DailyStudyLogResponse;
+import com.examsaathi.dto.response.SubjectDetailResponse;
 import com.examsaathi.dto.response.SubjectProgressResponse;
+import com.examsaathi.dto.response.TopicResponse;
 import com.examsaathi.entity.*;
 import com.examsaathi.exception.ResourceNotFoundException;
 import com.examsaathi.repository.*;
@@ -14,7 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.List;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
@@ -29,6 +32,7 @@ public class StudyProgressService {
     private final DailyStudyLogRepository studyLogRepository;
     private final TopicRepository topicRepository;
     private final SubjectRepository subjectRepository;
+    private final ChapterRepository chapterRepository;
     private final UserRepository userRepository;
     private final UserMapper mapper;
 
@@ -89,6 +93,97 @@ public class StudyProgressService {
         return studyLogRepository
             .findByUserIdAndStudyDateAfter(userId, LocalDate.now().minusDays(6))
             .stream().map(mapper::toDailyLogResponse).collect(Collectors.toList());
+    }
+
+    /** Get full subject detail with chapters, topics and per-user progress */
+    @Transactional(readOnly = true)
+    public SubjectDetailResponse getSubjectDetail(Long userId, Long subjectId) {
+        Subject subject = subjectRepository.findById(subjectId)
+            .orElseThrow(() -> new ResourceNotFoundException("Subject", subjectId));
+
+        List<Chapter> chapters = chapterRepository.findBySubjectIdWithTopics(subjectId);
+
+        // Batch-load all progress for this user + subject's topics
+        List<Long> allTopicIds = chapters.stream()
+            .flatMap(c -> c.getTopics().stream().map(Topic::getId))
+            .collect(Collectors.toList());
+
+        Map<Long, StudyProgress> progressMap = allTopicIds.isEmpty()
+            ? Collections.emptyMap()
+            : progressRepository.findByUserIdAndTopicIdIn(userId, allTopicIds)
+                .stream().collect(Collectors.toMap(sp -> sp.getTopic().getId(), sp -> sp));
+
+        int totalTopics = 0;
+        int totalCompleted = 0;
+        double totalStudyHours = 0.0;
+        List<ChapterWithProgressResponse> chapterResponses = new ArrayList<>();
+
+        for (Chapter chapter : chapters) {
+            List<Topic> topics = chapter.getTopics().stream()
+                .filter(t -> Boolean.TRUE.equals(t.getIsActive()))
+                .sorted(Comparator.comparing(Topic::getOrderIndex))
+                .collect(Collectors.toList());
+
+            int chapterCompleted = 0;
+            List<TopicResponse> topicResponses = new ArrayList<>();
+
+            for (Topic topic : topics) {
+                StudyProgress sp = progressMap.get(topic.getId());
+                boolean isCompleted = sp != null && Boolean.TRUE.equals(sp.getIsCompleted());
+                double actualHours = (sp != null && sp.getActualHours() != null) ? sp.getActualHours() : 0.0;
+
+                if (isCompleted) {
+                    chapterCompleted++;
+                    totalStudyHours += actualHours;
+                }
+
+                topicResponses.add(TopicResponse.builder()
+                    .id(topic.getId())
+                    .chapterId(chapter.getId())
+                    .chapterTitle(chapter.getTitle())
+                    .title(topic.getTitle())
+                    .description(topic.getDescription())
+                    .estimatedHours(topic.getEstimatedHours())
+                    .difficultyLevel(topic.getDifficultyLevel())
+                    .orderIndex(topic.getOrderIndex())
+                    .isActive(topic.getIsActive())
+                    .isCompleted(isCompleted)
+                    .actualHours(actualHours)
+                    .build());
+            }
+
+            double chapterPercent = topics.isEmpty() ? 0.0
+                : Math.round((chapterCompleted * 100.0 / topics.size()) * 10.0) / 10.0;
+
+            chapterResponses.add(ChapterWithProgressResponse.builder()
+                .id(chapter.getId())
+                .title(chapter.getTitle())
+                .description(chapter.getDescription())
+                .orderIndex(chapter.getOrderIndex())
+                .totalTopics(topics.size())
+                .completedTopics(chapterCompleted)
+                .completionPercent(chapterPercent)
+                .topics(topicResponses)
+                .build());
+
+            totalTopics += topics.size();
+            totalCompleted += chapterCompleted;
+        }
+
+        double subjectPercent = totalTopics == 0 ? 0.0
+            : Math.round((totalCompleted * 100.0 / totalTopics) * 10.0) / 10.0;
+
+        return SubjectDetailResponse.builder()
+            .subjectId(subject.getId())
+            .subjectName(subject.getName())
+            .iconName(subject.getIconName())
+            .colorCode(subject.getColorCode())
+            .totalTopics(totalTopics)
+            .completedTopics(totalCompleted)
+            .completionPercent(subjectPercent)
+            .totalStudyHours(totalStudyHours)
+            .chapters(chapterResponses)
+            .build();
     }
 
     /** Get subject-wise progress for a student */

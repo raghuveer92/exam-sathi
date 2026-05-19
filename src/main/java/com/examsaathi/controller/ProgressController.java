@@ -9,6 +9,7 @@ import com.examsaathi.service.StudyProgressService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.transaction.Transactional;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -58,6 +59,7 @@ public class ProgressController {
     }
 
     @GetMapping("/subjects/{examId}")
+    @Transactional
     @Operation(summary = "Get subject-wise progress for selected exam")
     public ResponseEntity<ApiResponse<List<SubjectProgressResponse>>> getSubjectProgress(
             @AuthenticationPrincipal UserDetails userDetails,
@@ -65,5 +67,16 @@ public class ProgressController {
         User user = userRepository.findByEmail(userDetails.getUsername()).orElseThrow();
         return ResponseEntity.ok(ApiResponse.success(
             studyProgressService.getSubjectProgress(user.getId(), examId)));
+    }
+
+    @GetMapping("/subject/{subjectId}")
+    @Transactional
+    @Operation(summary = "Get full subject detail with chapters, topics and per-user progress")
+    public ResponseEntity<ApiResponse<SubjectDetailResponse>> getSubjectDetail(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable Long subjectId) {
+        User user = userRepository.findByEmail(userDetails.getUsername()).orElseThrow();
+        return ResponseEntity.ok(ApiResponse.success(
+            studyProgressService.getSubjectDetail(user.getId(), subjectId)));
     }
 }

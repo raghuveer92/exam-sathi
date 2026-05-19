@@ -39,4 +39,11 @@ public interface StudyProgressRepository extends JpaRepository<StudyProgress, Lo
            "AND sp.topic.chapter.subject.exam.id = :examId AND sp.isCompleted = true")
     List<StudyProgress> findCompletedByUserAndExam(@Param("userId") Long userId,
                                                     @Param("examId") Long examId);
+
+    /** Batch fetch progress records for a user and a list of topic IDs */
+    @Query("SELECT sp FROM StudyProgress sp WHERE sp.user.id = :userId AND sp.topic.id IN :topicIds")
+    List<StudyProgress> findByUserIdAndTopicIdIn(@Param("userId") Long userId,
+                                                  @Param("topicIds") List<Long> topicIds);
+}
+                                                    @Param("examId") Long examId);
 }
