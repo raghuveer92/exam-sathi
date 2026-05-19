@@ -8,10 +8,9 @@ spring:
     name: examsaathi-backend
 
   datasource:
-    # SSL is embedded in the URL so it works on Render (IPv4 / pooler)
-    url: ${DB_URL:jdbc:postgresql://db.pdxwedsayobnljkiptrl.supabase.co:5432/postgres?sslmode=require}
-    username: ${DB_USERNAME:postgres}
-    password: ${DB_PASSWORD:mT@9S%s.,MX76k7}
+    url: ${DB_URL:jdbc:postgresql://dpg-d864l0b7uimc73bvgh1g-a.singapore-postgres.render.com:5432/exam_sathi_db}
+    username: ${DB_USERNAME:raghuveer_dev}
+    password: ${DB_PASSWORD:t6yFqfjRtjhNpfCjCagGBmyi4XJlOZy0}
     driver-class-name: org.postgresql.Driver
     hikari:
       maximum-pool-size: 5
