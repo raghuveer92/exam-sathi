@@ -45,5 +45,3 @@ public interface StudyProgressRepository extends JpaRepository<StudyProgress, Lo
     List<StudyProgress> findByUserIdAndTopicIdIn(@Param("userId") Long userId,
                                                   @Param("topicIds") List<Long> topicIds);
 }
-                                                    @Param("examId") Long examId);
-}
