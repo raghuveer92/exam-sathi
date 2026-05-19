@@ -16,6 +16,11 @@ import java.util.stream.Collectors;
 public class UserMapper {
 
     public UserResponse toResponse(User user) {
+        Integer daysUntilExam = null;
+        if (user.getExamDate() != null) {
+            long days = java.time.temporal.ChronoUnit.DAYS.between(java.time.LocalDate.now(), user.getExamDate());
+            daysUntilExam = (int) days;
+        }
         return UserResponse.builder()
             .id(user.getId())
             .email(user.getEmail())
@@ -25,6 +30,11 @@ public class UserMapper {
             .selectedExamId(user.getSelectedExam() != null ? user.getSelectedExam().getId() : null)
             .selectedExamName(user.getSelectedExam() != null ? user.getSelectedExam().getName() : null)
             .targetCompletionDate(user.getTargetCompletionDate())
+            .examDate(user.getExamDate())
+            .syllabusTargetDate(user.getSyllabusTargetDate())
+            .dailyTargetHours(user.getDailyTargetHours())
+            .weeklyTargetHours(user.getWeeklyTargetHours())
+            .daysUntilExam(daysUntilExam)
             .isActive(user.getIsActive())
             .studyStreakDays(user.getStudyStreakDays())
             .lastStudyDate(user.getLastStudyDate())

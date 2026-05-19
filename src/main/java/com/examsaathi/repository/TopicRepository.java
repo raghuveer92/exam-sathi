@@ -27,4 +27,9 @@ public interface TopicRepository extends JpaRepository<Topic, Long> {
     @Query("SELECT COALESCE(SUM(t.estimatedHours), 0) FROM Topic t " +
            "WHERE t.chapter.subject.id = :subjectId AND t.isActive = true")
     Double sumEstimatedHoursBySubjectId(@Param("subjectId") Long subjectId);
+
+    /** Sum estimated hours for an entire exam */
+    @Query("SELECT COALESCE(SUM(t.estimatedHours), 0) FROM Topic t " +
+           "WHERE t.chapter.subject.exam.id = :examId AND t.isActive = true")
+    Double sumEstimatedHoursByExamId(@Param("examId") Long examId);
 }

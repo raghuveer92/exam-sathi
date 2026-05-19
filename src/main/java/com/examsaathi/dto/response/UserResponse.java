@@ -3,6 +3,7 @@ package com.examsaathi.dto.response;
 import lombok.Builder;
 import lombok.Data;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -17,6 +18,11 @@ public class UserResponse {
     private Long selectedExamId;
     private String selectedExamName;
     private LocalDateTime targetCompletionDate;
+    private LocalDate examDate;
+    private LocalDate syllabusTargetDate;
+    private Double dailyTargetHours;
+    private Double weeklyTargetHours;
+    private Integer daysUntilExam;
     private Boolean isActive;
     private Integer studyStreakDays;
     private LocalDateTime lastStudyDate;

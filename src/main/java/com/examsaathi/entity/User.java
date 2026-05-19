@@ -6,6 +6,7 @@ import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Set;
@@ -49,6 +50,18 @@ public class User {
 
     /** Target date the student wants to complete the syllabus */
     private LocalDateTime targetCompletionDate;
+
+    /** Actual exam date chosen by the student */
+    private LocalDate examDate;
+
+    /** Target date to complete syllabus (for revision buffer) */
+    private LocalDate syllabusTargetDate;
+
+    /** Calculated daily study target in hours */
+    private Double dailyTargetHours;
+
+    /** Calculated weekly study target in hours */
+    private Double weeklyTargetHours;
 
     @Column(nullable = false)
     @Builder.Default
