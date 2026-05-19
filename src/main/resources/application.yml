@@ -1,0 +1,73 @@
+server:
+  port: 8080
+  servlet:
+    context-path: /api/v1
+
+spring:
+  application:
+    name: examsaathi-backend
+
+  datasource:
+    # SSL is embedded in the URL so it works on Render (IPv4 / pooler)
+    url: ${DB_URL:jdbc:postgresql://db.pdxwedsayobnljkiptrl.supabase.co:5432/postgres?sslmode=require}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:mT@9S%s.,MX76k7}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 5
+      minimum-idle: 1
+      connection-timeout: 30000
+      idle-timeout: 600000
+      keepalive-time: 30000
+
+  jpa:
+    hibernate:
+      ddl-auto: ${DDL_AUTO:update}
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+        use_sql_comments: true
+    open-in-view: false
+
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+    default-property-inclusion: non_null
+
+# JWT Configuration
+jwt:
+  secret: ${JWT_SECRET:ExamSaathi@SecretKey#2024$ProductionReady!PleaseChangeInProd}
+  expiration: ${JWT_EXPIRATION:86400000}        # 24 hours in ms
+  refresh-expiration: ${JWT_REFRESH_EXPIRATION:604800000}  # 7 days in ms
+
+# SpringDoc / Swagger
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operationsSorter: method
+    tagsSorter: alpha
+  info:
+    title: ExamSaathi API
+    description: REST API for ExamSaathi Study Tracking Platform
+    version: 1.0.0
+
+# Actuator
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: always
+
+# Logging
+logging:
+  level:
+    com.examsaathi: INFO
+    org.springframework.security: WARN
+    org.hibernate.SQL: WARN
