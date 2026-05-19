@@ -54,10 +54,18 @@ public class StudyProgressService {
         progress.setActualHours(request.getActualHours());
         progress.setNotes(request.getNotes());
 
-        if (request.getIsCompleted() && !wasCompleted) {
-            progress.setCompletedAt(LocalDateTime.now());
-            // Update daily log topics count
-            updateDailyLogTopicCount(userId, LocalDate.now());
+        // Derive and set topic status
+        if (Boolean.TRUE.equals(request.getIsCompleted())) {
+            progress.setStatus(StudyProgress.TopicStatus.COMPLETED);
+            if (!wasCompleted) {
+                progress.setCompletedAt(LocalDateTime.now());
+                updateDailyLogTopicCount(userId, LocalDate.now());
+            }
+        } else if (request.getActualHours() != null && request.getActualHours() > 0) {
+            progress.setStatus(StudyProgress.TopicStatus.IN_PROGRESS);
+            progress.setLastStudiedAt(LocalDateTime.now());
+        } else {
+            progress.setStatus(StudyProgress.TopicStatus.NOT_STARTED);
         }
 
         progressRepository.save(progress);
@@ -137,6 +145,11 @@ public class StudyProgressService {
                     totalStudyHours += actualHours;
                 }
 
+                String statusStr = (sp != null && sp.getStatus() != null)
+                    ? sp.getStatus().name() : "NOT_STARTED";
+                LocalDateTime completedAt = (sp != null) ? sp.getCompletedAt() : null;
+                LocalDateTime lastStudiedAt = (sp != null) ? sp.getLastStudiedAt() : null;
+
                 topicResponses.add(TopicResponse.builder()
                     .id(topic.getId())
                     .chapterId(chapter.getId())
@@ -149,6 +162,9 @@ public class StudyProgressService {
                     .isActive(topic.getIsActive())
                     .isCompleted(isCompleted)
                     .actualHours(actualHours)
+                    .status(statusStr)
+                    .completedAt(completedAt)
+                    .lastStudiedAt(lastStudiedAt)
                     .build());
             }
 

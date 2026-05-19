@@ -25,6 +25,8 @@ import java.time.LocalDateTime;
 @Builder
 public class StudyProgress {
 
+    public enum TopicStatus { NOT_STARTED, IN_PROGRESS, COMPLETED }
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -37,6 +39,11 @@ public class StudyProgress {
     @JoinColumn(name = "topic_id", nullable = false)
     private Topic topic;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    @Builder.Default
+    private TopicStatus status = TopicStatus.NOT_STARTED;
+
     @Column(nullable = false)
     @Builder.Default
     private Boolean isCompleted = false;
@@ -47,6 +54,9 @@ public class StudyProgress {
 
     /** Date/time when the topic was marked complete */
     private LocalDateTime completedAt;
+
+    /** Date/time when study hours were last updated */
+    private LocalDateTime lastStudiedAt;
 
     /** Optional personal notes by the student */
     @Column(length = 1000)

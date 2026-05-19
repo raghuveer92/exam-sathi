@@ -19,4 +19,8 @@ public class TopicResponse {
     /** Populated when response is for a specific student */
     private Boolean isCompleted;
     private Double actualHours;
+    /** NOT_STARTED | IN_PROGRESS | COMPLETED */
+    private String status;
+    private java.time.LocalDateTime completedAt;
+    private java.time.LocalDateTime lastStudiedAt;
 }
