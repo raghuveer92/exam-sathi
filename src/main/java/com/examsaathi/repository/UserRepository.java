@@ -16,6 +16,10 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     Optional<User> findByEmail(String email);
 
+    /** Find user with selectedExam eagerly fetched to avoid LazyInitializationException */
+    @Query("SELECT u FROM User u LEFT JOIN FETCH u.selectedExam WHERE u.email = :email")
+    Optional<User> findByEmailWithExam(@Param("email") String email);
+
     boolean existsByEmail(String email);
 
     /** Search students by name or email */

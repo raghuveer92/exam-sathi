@@ -7,6 +7,7 @@ import com.examsaathi.entity.User;
 import com.examsaathi.repository.UserRepository;
 import com.examsaathi.service.DashboardService;
 import com.examsaathi.service.UserMapper;
+import jakarta.transaction.Transactional;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -28,10 +29,11 @@ public class StudentController {
     private final UserMapper userMapper;
 
     @GetMapping("/me")
+    @Transactional
     @Operation(summary = "Get current student profile")
     public ResponseEntity<ApiResponse<UserResponse>> getProfile(
             @AuthenticationPrincipal UserDetails userDetails) {
-        User user = userRepository.findByEmail(userDetails.getUsername()).orElseThrow();
+        User user = userRepository.findByEmailWithExam(userDetails.getUsername()).orElseThrow();
         return ResponseEntity.ok(ApiResponse.success(userMapper.toResponse(user)));
     }
 
@@ -44,12 +46,12 @@ public class StudentController {
     }
 
     @PatchMapping("/exam/{examId}")
+    @Transactional
     @Operation(summary = "Select exam to prepare for")
     public ResponseEntity<ApiResponse<UserResponse>> selectExam(
             @AuthenticationPrincipal UserDetails userDetails,
             @PathVariable Long examId) {
-        User user = userRepository.findByEmail(userDetails.getUsername()).orElseThrow();
-        // Exam selection delegated to service in production; simple approach here
+        User user = userRepository.findByEmailWithExam(userDetails.getUsername()).orElseThrow();
         com.examsaathi.entity.Exam exam = new com.examsaathi.entity.Exam();
         exam.setId(examId);
         user.setSelectedExam(exam);
