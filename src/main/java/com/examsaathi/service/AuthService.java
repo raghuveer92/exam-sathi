@@ -63,12 +63,13 @@ public class AuthService {
     }
 
     /** Login with email and password */
+    @Transactional
     public AuthResponse login(LoginRequest request) {
         Authentication auth = authenticationManager.authenticate(
             new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword())
         );
 
-        User user = userRepository.findByEmail(request.getEmail())
+        User user = userRepository.findByEmailWithExam(request.getEmail())
             .orElseThrow();
 
         String token = tokenProvider.generateToken(auth);

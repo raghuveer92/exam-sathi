@@ -7,6 +7,7 @@ import com.examsaathi.entity.User;
 import com.examsaathi.repository.UserRepository;
 import com.examsaathi.service.AnalyticsService;
 import com.examsaathi.service.UserMapper;
+import jakarta.transaction.Transactional;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -39,6 +40,7 @@ public class AdminController {
     }
 
     @GetMapping("/students")
+    @Transactional
     @Operation(summary = "Get all students (paginated)")
     public ResponseEntity<ApiResponse<List<UserResponse>>> getStudents(
             @RequestParam(defaultValue = "") String query,
@@ -51,6 +53,7 @@ public class AdminController {
     }
 
     @GetMapping("/students/{id}")
+    @Transactional
     @Operation(summary = "Get student profile")
     public ResponseEntity<ApiResponse<UserResponse>> getStudent(@PathVariable Long id) {
         User user = userRepository.findById(id)
@@ -59,6 +62,7 @@ public class AdminController {
     }
 
     @PatchMapping("/students/{id}/status")
+    @Transactional
     @Operation(summary = "Activate/deactivate student")
     public ResponseEntity<ApiResponse<UserResponse>> updateStudentStatus(
             @PathVariable Long id,
