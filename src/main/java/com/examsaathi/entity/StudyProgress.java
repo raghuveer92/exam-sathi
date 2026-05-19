@@ -40,7 +40,7 @@ public class StudyProgress {
     private Topic topic;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
+    @Column(length = 20)
     @Builder.Default
     private TopicStatus status = TopicStatus.NOT_STARTED;
 
