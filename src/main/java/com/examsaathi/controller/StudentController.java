@@ -1,6 +1,7 @@
 package com.examsaathi.controller;
 
 import com.examsaathi.dto.request.ExamGoalRequest;
+import com.examsaathi.dto.request.UpdateStudyHoursRequest;
 import com.examsaathi.dto.response.ApiResponse;
 import com.examsaathi.dto.response.DashboardResponse;
 import com.examsaathi.dto.response.UserResponse;
@@ -90,5 +91,22 @@ public class StudentController {
 
         userRepository.save(user);
         return ResponseEntity.ok(ApiResponse.success("Exam goal set", userMapper.toResponse(user)));
+    }
+
+    @PatchMapping("/study-hours")
+    @Transactional
+    @Operation(summary = "Update daily study target hours")
+    public ResponseEntity<ApiResponse<UserResponse>> updateStudyHours(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @RequestBody UpdateStudyHoursRequest request) {
+        User user = userRepository.findByEmailWithExam(userDetails.getUsername()).orElseThrow();
+        if (request.getDailyTargetHours() != null) {
+            double daily = Math.max(0.5, Math.min(16.0, request.getDailyTargetHours()));
+            daily = Math.round(daily * 2.0) / 2.0; // snap to 0.5 increments
+            user.setDailyTargetHours(daily);
+            user.setWeeklyTargetHours(Math.round(daily * 7 * 10.0) / 10.0);
+        }
+        userRepository.save(user);
+        return ResponseEntity.ok(ApiResponse.success("Study hours updated", userMapper.toResponse(user)));
     }
 }

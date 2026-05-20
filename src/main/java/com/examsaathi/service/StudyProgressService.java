@@ -82,9 +82,12 @@ public class StudyProgressService {
             .orElseGet(() -> DailyStudyLog.builder()
                 .user(user)
                 .studyDate(request.getStudyDate())
+                .hoursStudied(0.0)
                 .build());
 
-        log.setHoursStudied(request.getHoursStudied());
+        // Accumulate hours (app sends deltas, not totals)
+        double existing = log.getHoursStudied() != null ? log.getHoursStudied() : 0.0;
+        log.setHoursStudied(existing + request.getHoursStudied());
         log.setTopicsCompleted(request.getTopicsCompleted());
         studyLogRepository.save(log);
 
