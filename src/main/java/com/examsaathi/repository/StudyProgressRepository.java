@@ -44,4 +44,7 @@ public interface StudyProgressRepository extends JpaRepository<StudyProgress, Lo
     @Query("SELECT sp FROM StudyProgress sp WHERE sp.user.id = :userId AND sp.topic.id IN :topicIds")
     List<StudyProgress> findByUserIdAndTopicIdIn(@Param("userId") Long userId,
                                                   @Param("topicIds") List<Long> topicIds);
+
+    /** Delete all progress records for a topic (used before topic deletion) */
+    void deleteByTopicId(Long topicId);
 }

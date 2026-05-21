@@ -9,6 +9,7 @@ import com.examsaathi.entity.Subject;
 import com.examsaathi.entity.Topic;
 import com.examsaathi.exception.ResourceNotFoundException;
 import com.examsaathi.repository.ChapterRepository;
+import com.examsaathi.repository.StudyProgressRepository;
 import com.examsaathi.repository.SubjectRepository;
 import com.examsaathi.repository.TopicRepository;
 import lombok.RequiredArgsConstructor;
@@ -25,6 +26,7 @@ public class SyllabusService {
     private final ChapterRepository chapterRepository;
     private final TopicRepository topicRepository;
     private final SubjectRepository subjectRepository;
+    private final StudyProgressRepository progressRepository;
     private final UserMapper mapper;
 
     // ========== Chapters ==========
@@ -124,6 +126,8 @@ public class SyllabusService {
     @Transactional
     public void deleteTopic(Long id) {
         if (!topicRepository.existsById(id)) throw new ResourceNotFoundException("Topic", id);
+        // Remove FK-dependent progress records first to avoid constraint violation
+        progressRepository.deleteByTopicId(id);
         topicRepository.deleteById(id);
     }
 }
