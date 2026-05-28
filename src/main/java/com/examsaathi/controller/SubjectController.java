@@ -1,6 +1,7 @@
 package com.examsaathi.controller;
 
 import com.examsaathi.dto.request.SubjectRequest;
+import com.examsaathi.dto.request.CloneSubjectRequest;
 import com.examsaathi.dto.response.ApiResponse;
 import com.examsaathi.dto.response.SubjectResponse;
 import com.examsaathi.service.SubjectService;
@@ -45,6 +46,17 @@ public class SubjectController {
             @Valid @RequestBody SubjectRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
             .body(ApiResponse.success("Subject created", subjectService.createSubject(request)));
+    }
+
+    @PostMapping("/{id}/clone")
+    @PreAuthorize("hasRole('ADMIN')")
+    @SecurityRequirement(name = "bearerAuth")
+    @Operation(summary = "Clone subject with chapters and topics into another exam (Admin)")
+    public ResponseEntity<ApiResponse<SubjectResponse>> cloneSubject(
+            @PathVariable Long id,
+            @Valid @RequestBody CloneSubjectRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+            .body(ApiResponse.success("Subject cloned", subjectService.cloneSubject(id, request)));
     }
 
     @PutMapping("/{id}")
