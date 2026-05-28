@@ -1,6 +1,7 @@
 package com.examsaathi.controller;
 
 import com.examsaathi.dto.request.ChapterRequest;
+import com.examsaathi.dto.request.BulkTopicRequest;
 import com.examsaathi.dto.request.TopicRequest;
 import com.examsaathi.dto.response.*;
 import com.examsaathi.service.SyllabusService;
@@ -91,6 +92,16 @@ public class SyllabusController {
             @Valid @RequestBody TopicRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
             .body(ApiResponse.success("Topic created", syllabusService.createTopic(request)));
+    }
+
+    @PostMapping("/topics/bulk")
+    @PreAuthorize("hasRole('ADMIN')")
+    @SecurityRequirement(name = "bearerAuth")
+    @Operation(summary = "Create topics in bulk (Admin)")
+    public ResponseEntity<ApiResponse<List<TopicResponse>>> createTopics(
+            @Valid @RequestBody BulkTopicRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+            .body(ApiResponse.success("Topics created", syllabusService.createTopics(request.getTopics())));
     }
 
     @PutMapping("/topics/{id}")

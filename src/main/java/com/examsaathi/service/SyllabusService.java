@@ -16,7 +16,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -94,20 +96,20 @@ public class SyllabusService {
 
     @Transactional
     public TopicResponse createTopic(TopicRequest request) {
-        Chapter chapter = chapterRepository.findById(request.getChapterId())
-            .orElseThrow(() -> new ResourceNotFoundException("Chapter", request.getChapterId()));
-
-        Topic topic = Topic.builder()
-            .chapter(chapter)
-            .title(request.getTitle())
-            .description(request.getDescription())
-            .estimatedHours(request.getEstimatedHours())
-            .difficultyLevel(request.getDifficultyLevel())
-            .orderIndex(request.getOrderIndex())
-            .isActive(request.getIsActive())
-            .build();
-
+        Topic topic = toTopicEntity(request, new HashMap<>());
         return mapper.toTopicResponse(topicRepository.save(topic));
+    }
+
+    @Transactional
+    public List<TopicResponse> createTopics(List<TopicRequest> requests) {
+        Map<Long, Chapter> chaptersById = new HashMap<>();
+        List<Topic> topics = requests.stream()
+            .map(request -> toTopicEntity(request, chaptersById))
+            .toList();
+        return topicRepository.saveAll(topics)
+            .stream()
+            .map(mapper::toTopicResponse)
+            .collect(Collectors.toList());
     }
 
     @Transactional
@@ -129,5 +131,23 @@ public class SyllabusService {
         // Remove FK-dependent progress records first to avoid constraint violation
         progressRepository.deleteByTopicId(id);
         topicRepository.deleteById(id);
+    }
+
+    private Topic toTopicEntity(TopicRequest request, Map<Long, Chapter> chaptersById) {
+        Chapter chapter = chaptersById.computeIfAbsent(
+            request.getChapterId(),
+            chapterId -> chapterRepository.findById(chapterId)
+                .orElseThrow(() -> new ResourceNotFoundException("Chapter", chapterId))
+        );
+
+        return Topic.builder()
+            .chapter(chapter)
+            .title(request.getTitle())
+            .description(request.getDescription())
+            .estimatedHours(request.getEstimatedHours())
+            .difficultyLevel(request.getDifficultyLevel())
+            .orderIndex(request.getOrderIndex())
+            .isActive(request.getIsActive())
+            .build();
     }
 }
