@@ -166,7 +166,10 @@ public class StudentController {
             .orElseThrow(() -> new BadRequestException("Exam mapping not found"));
 
         boolean deletingActive = Boolean.TRUE.equals(toDelete.getIsActive());
+        // Keep owning side in sync to avoid stale association re-persist during flush.
+        user.getUserExams().removeIf(ue -> ue.getId().equals(toDelete.getId()));
         userExamRepository.delete(toDelete);
+        userExamRepository.flush();
 
         if (deletingActive) {
             List<UserExam> remaining = userExamRepository.findByUserIdOrderByExamDateAscCreatedAtAsc(user.getId());
@@ -177,9 +180,9 @@ public class StudentController {
                 .findFirst()
                 .orElseThrow(() -> new BadRequestException("No exam found after delete"));
             setActiveExam(user, next);
+            userRepository.save(user);
         }
 
-        userRepository.save(user);
         return ResponseEntity.ok(ApiResponse.success("Exam deleted", userMapper.toResponse(user)));
     }
 
