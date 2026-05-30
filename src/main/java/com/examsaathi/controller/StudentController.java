@@ -166,9 +166,7 @@ public class StudentController {
             .orElseThrow(() -> new BadRequestException("Exam mapping not found"));
 
         boolean deletingActive = Boolean.TRUE.equals(toDelete.getIsActive());
-        // Keep owning side in sync to avoid stale association re-persist during flush.
-        user.getUserExams().removeIf(ue -> ue.getId().equals(toDelete.getId()));
-        userExamRepository.delete(toDelete);
+        userExamRepository.deleteById(toDelete.getId());
         userExamRepository.flush();
 
         if (deletingActive) {
@@ -183,7 +181,8 @@ public class StudentController {
             userRepository.save(user);
         }
 
-        return ResponseEntity.ok(ApiResponse.success("Exam deleted", userMapper.toResponse(user)));
+        User refreshedUser = userRepository.findByEmailWithExam(userDetails.getUsername()).orElseThrow();
+        return ResponseEntity.ok(ApiResponse.success("Exam deleted", userMapper.toResponse(refreshedUser)));
     }
 
     @PostMapping("/exam-goal")
