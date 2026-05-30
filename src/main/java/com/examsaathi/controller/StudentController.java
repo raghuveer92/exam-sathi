@@ -166,7 +166,9 @@ public class StudentController {
             .orElseThrow(() -> new BadRequestException("Exam mapping not found"));
 
         boolean deletingActive = Boolean.TRUE.equals(toDelete.getIsActive());
-        userExamRepository.deleteById(toDelete.getId());
+        // Keep JPA managed state in sync so deleted exams do not reappear in the same transaction.
+        user.getUserExams().removeIf(ue -> ue.getId().equals(toDelete.getId()));
+        userExamRepository.delete(toDelete);
         userExamRepository.flush();
 
         if (deletingActive) {
@@ -178,8 +180,8 @@ public class StudentController {
                 .findFirst()
                 .orElseThrow(() -> new BadRequestException("No exam found after delete"));
             setActiveExam(user, next);
-            userRepository.save(user);
         }
+        userRepository.saveAndFlush(user);
 
         User refreshedUser = userRepository.findByEmailWithExam(userDetails.getUsername()).orElseThrow();
         return ResponseEntity.ok(ApiResponse.success("Exam deleted", userMapper.toResponse(refreshedUser)));
