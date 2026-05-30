@@ -34,6 +34,13 @@ public interface StudyProgressRepository extends JpaRepository<StudyProgress, Lo
            "AND sp.isCompleted = true AND sp.completedAt >= :since")
     int countCompletedSince(@Param("userId") Long userId, @Param("since") LocalDateTime since);
 
+    @Query("SELECT COUNT(sp) FROM StudyProgress sp WHERE sp.user.id = :userId " +
+           "AND sp.topic.chapter.subject.exam.id = :examId " +
+           "AND sp.isCompleted = true AND sp.completedAt >= :since")
+    int countCompletedByUserAndExamSince(@Param("userId") Long userId,
+                                         @Param("examId") Long examId,
+                                         @Param("since") LocalDateTime since);
+
     /** All completed progress for a user in an exam (for analytics) */
     @Query("SELECT sp FROM StudyProgress sp WHERE sp.user.id = :userId " +
            "AND sp.topic.chapter.subject.exam.id = :examId AND sp.isCompleted = true")

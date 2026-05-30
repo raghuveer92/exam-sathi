@@ -59,7 +59,7 @@ public class StudyProgressService {
             progress.setStatus(StudyProgress.TopicStatus.COMPLETED);
             if (!wasCompleted) {
                 progress.setCompletedAt(LocalDateTime.now());
-                updateDailyLogTopicCount(userId, LocalDate.now());
+                updateDailyLogTopicCount(userId, LocalDate.now(), topic.getChapter().getSubject().getExam().getId());
             }
         } else if (request.getActualHours() != null && request.getActualHours() > 0) {
             progress.setStatus(StudyProgress.TopicStatus.IN_PROGRESS);
@@ -77,10 +77,17 @@ public class StudyProgressService {
     public DailyStudyLogResponse logStudyHours(Long userId, StudyLogRequest request) {
         User user = userRepository.findById(userId).orElseThrow();
 
+        if (user.getSelectedExam() == null) {
+            throw new IllegalStateException("No active exam selected");
+        }
+        Long activeExamId = user.getSelectedExam().getId();
+        Exam activeExamRef = Exam.builder().id(activeExamId).build();
+
         DailyStudyLog log = studyLogRepository
-            .findByUserIdAndStudyDate(userId, request.getStudyDate())
+            .findByUserIdAndExamIdAndStudyDate(userId, activeExamId, request.getStudyDate())
             .orElseGet(() -> DailyStudyLog.builder()
                 .user(user)
+                .exam(activeExamRef)
                 .studyDate(request.getStudyDate())
                 .hoursStudied(0.0)
                 .build());
@@ -101,8 +108,12 @@ public class StudyProgressService {
 
     /** Get weekly study logs for a student */
     public List<DailyStudyLogResponse> getWeeklyLogs(Long userId) {
+        User user = userRepository.findById(userId).orElseThrow();
+        if (user.getSelectedExam() == null) {
+            return Collections.emptyList();
+        }
         return studyLogRepository
-            .findByUserIdAndStudyDateAfter(userId, LocalDate.now().minusDays(6))
+            .findByUserIdAndExamIdAndStudyDateAfter(userId, user.getSelectedExam().getId(), LocalDate.now().minusDays(6))
             .stream().map(mapper::toDailyLogResponse).collect(Collectors.toList());
     }
 
@@ -235,12 +246,13 @@ public class StudyProgressService {
     }
 
     /** Update today's daily log topic count */
-    private void updateDailyLogTopicCount(Long userId, LocalDate date) {
+    private void updateDailyLogTopicCount(Long userId, LocalDate date, Long examId) {
         User user = userRepository.findById(userId).orElseThrow();
+        Exam examRef = Exam.builder().id(examId).build();
         DailyStudyLog log = studyLogRepository
-            .findByUserIdAndStudyDate(userId, date)
+            .findByUserIdAndExamIdAndStudyDate(userId, examId, date)
             .orElseGet(() -> DailyStudyLog.builder()
-                .user(user).studyDate(date).hoursStudied(0.0).build());
+                .user(user).exam(examRef).studyDate(date).hoursStudied(0.0).build());
         log.setTopicsCompleted((log.getTopicsCompleted() != null ? log.getTopicsCompleted() : 0) + 1);
         studyLogRepository.save(log);
     }
@@ -251,13 +263,19 @@ public class StudyProgressService {
         LocalDate today = LocalDate.now();
         LocalDate yesterday = today.minusDays(1);
 
-        boolean studiedToday = studyLogRepository.findByUserIdAndStudyDate(userId, today)
-            .map(l -> l.getHoursStudied() > 0 || l.getTopicsCompleted() > 0)
-            .orElse(false);
+        boolean studiedToday = ((studyLogRepository.sumHoursByUserIdAndStudyDate(userId, today) != null
+            ? studyLogRepository.sumHoursByUserIdAndStudyDate(userId, today)
+            : 0.0) > 0)
+            || ((studyLogRepository.sumTopicsByUserIdAndStudyDate(userId, today) != null
+            ? studyLogRepository.sumTopicsByUserIdAndStudyDate(userId, today)
+            : 0) > 0);
 
-        boolean studiedYesterday = studyLogRepository.findByUserIdAndStudyDate(userId, yesterday)
-            .map(l -> l.getHoursStudied() > 0 || l.getTopicsCompleted() > 0)
-            .orElse(false);
+        boolean studiedYesterday = ((studyLogRepository.sumHoursByUserIdAndStudyDate(userId, yesterday) != null
+            ? studyLogRepository.sumHoursByUserIdAndStudyDate(userId, yesterday)
+            : 0.0) > 0)
+            || ((studyLogRepository.sumTopicsByUserIdAndStudyDate(userId, yesterday) != null
+            ? studyLogRepository.sumTopicsByUserIdAndStudyDate(userId, yesterday)
+            : 0) > 0);
 
         if (studiedToday) {
             if (studiedYesterday || user.getStudyStreakDays() == 0) {

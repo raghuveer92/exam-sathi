@@ -27,5 +27,7 @@ public class UserResponse {
     private Integer studyStreakDays;
     private LocalDateTime lastStudyDate;
     private List<String> roles;
+    private Long activeUserExamId;
+    private List<UserExamResponse> userExams;
     private LocalDateTime createdAt;
 }

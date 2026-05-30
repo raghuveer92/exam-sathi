@@ -24,6 +24,7 @@ public class DashboardResponse {
     private int todayTopicsCompleted;
     /** Estimated days to completion based on daily average */
     private Long estimatedDaysToComplete;
+    private List<UserExamResponse> myExams;
     private List<SubjectProgressResponse> subjectProgress;
     private List<DailyStudyLogResponse> weeklyLogs;
 }

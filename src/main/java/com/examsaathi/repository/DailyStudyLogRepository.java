@@ -15,13 +15,23 @@ public interface DailyStudyLogRepository extends JpaRepository<DailyStudyLog, Lo
 
     Optional<DailyStudyLog> findByUserIdAndStudyDate(Long userId, LocalDate date);
 
+       Optional<DailyStudyLog> findByUserIdAndExamIdAndStudyDate(Long userId, Long examId, LocalDate date);
+
     List<DailyStudyLog> findByUserIdOrderByStudyDateDesc(Long userId);
+
+       List<DailyStudyLog> findByUserIdAndExamIdOrderByStudyDateDesc(Long userId, Long examId);
 
     /** Last N days logs for weekly chart */
     @Query("SELECT d FROM DailyStudyLog d WHERE d.user.id = :userId " +
            "AND d.studyDate >= :since ORDER BY d.studyDate ASC")
     List<DailyStudyLog> findByUserIdAndStudyDateAfter(@Param("userId") Long userId,
                                                        @Param("since") LocalDate since);
+
+    @Query("SELECT d FROM DailyStudyLog d WHERE d.user.id = :userId " +
+           "AND d.exam.id = :examId AND d.studyDate >= :since ORDER BY d.studyDate ASC")
+    List<DailyStudyLog> findByUserIdAndExamIdAndStudyDateAfter(@Param("userId") Long userId,
+                                                                @Param("examId") Long examId,
+                                                                @Param("since") LocalDate since);
 
     /** Sum hours studied in a date range */
     @Query("SELECT COALESCE(SUM(d.hoursStudied), 0) FROM DailyStudyLog d " +
@@ -33,4 +43,10 @@ public interface DailyStudyLogRepository extends JpaRepository<DailyStudyLog, Lo
     /** Platform-wide daily active users */
     @Query("SELECT COUNT(DISTINCT d.user.id) FROM DailyStudyLog d WHERE d.studyDate = :date")
     long countDailyActiveUsers(@Param("date") LocalDate date);
+
+       @Query("SELECT COALESCE(SUM(d.hoursStudied), 0) FROM DailyStudyLog d WHERE d.user.id = :userId AND d.studyDate = :date")
+       Double sumHoursByUserIdAndStudyDate(@Param("userId") Long userId, @Param("date") LocalDate date);
+
+       @Query("SELECT COALESCE(SUM(d.topicsCompleted), 0) FROM DailyStudyLog d WHERE d.user.id = :userId AND d.studyDate = :date")
+       Integer sumTopicsByUserIdAndStudyDate(@Param("userId") Long userId, @Param("date") LocalDate date);
 }

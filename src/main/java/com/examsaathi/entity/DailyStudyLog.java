@@ -15,7 +15,7 @@ import java.time.LocalDateTime;
 @Entity
 @Table(
     name = "daily_study_logs",
-    uniqueConstraints = @UniqueConstraint(columnNames = {"user_id", "study_date"})
+    uniqueConstraints = @UniqueConstraint(columnNames = {"user_id", "exam_id", "study_date"})
 )
 @EntityListeners(AuditingEntityListener.class)
 @Getter
@@ -32,6 +32,10 @@ public class DailyStudyLog {
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "exam_id")
+    private Exam exam;
 
     @Column(nullable = false)
     private LocalDate studyDate;

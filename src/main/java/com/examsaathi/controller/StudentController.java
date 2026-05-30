@@ -2,14 +2,25 @@ package com.examsaathi.controller;
 
 import com.examsaathi.dto.request.ExamGoalRequest;
 import com.examsaathi.dto.request.UpdateStudyHoursRequest;
+import com.examsaathi.dto.request.UserExamCreateRequest;
+import com.examsaathi.dto.request.UserExamDateUpdateRequest;
 import com.examsaathi.dto.response.ApiResponse;
 import com.examsaathi.dto.response.DashboardResponse;
 import com.examsaathi.dto.response.UserResponse;
+import com.examsaathi.dto.response.UserExamResponse;
+import com.examsaathi.entity.Exam;
 import com.examsaathi.entity.User;
+import com.examsaathi.entity.UserExam;
+import com.examsaathi.exception.BadRequestException;
+import com.examsaathi.repository.ExamRepository;
+import com.examsaathi.repository.SubjectRepository;
+import com.examsaathi.repository.StudyProgressRepository;
 import com.examsaathi.repository.TopicRepository;
+import com.examsaathi.repository.UserExamRepository;
 import com.examsaathi.repository.UserRepository;
 import com.examsaathi.service.DashboardService;
 import com.examsaathi.service.UserMapper;
+import jakarta.validation.Valid;
 import jakarta.transaction.Transactional;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -20,6 +31,12 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
+import java.util.Comparator;
+import java.util.List;
+import java.util.stream.Collectors;
+
 @RestController
 @RequestMapping("/student")
 @RequiredArgsConstructor
@@ -28,9 +45,13 @@ import org.springframework.web.bind.annotation.*;
 public class StudentController {
 
     private final UserRepository userRepository;
+    private final UserExamRepository userExamRepository;
+    private final ExamRepository examRepository;
     private final DashboardService dashboardService;
     private final UserMapper userMapper;
     private final TopicRepository topicRepository;
+    private final SubjectRepository subjectRepository;
+    private final StudyProgressRepository studyProgressRepository;
 
     @GetMapping("/me")
     @Transactional
@@ -51,16 +72,115 @@ public class StudentController {
 
     @PatchMapping("/exam/{examId}")
     @Transactional
-    @Operation(summary = "Select exam to prepare for")
+    @Operation(summary = "Select exam to prepare for (backward-compatible)")
     public ResponseEntity<ApiResponse<UserResponse>> selectExam(
             @AuthenticationPrincipal UserDetails userDetails,
             @PathVariable Long examId) {
         User user = userRepository.findByEmailWithExam(userDetails.getUsername()).orElseThrow();
-        com.examsaathi.entity.Exam exam = new com.examsaathi.entity.Exam();
-        exam.setId(examId);
-        user.setSelectedExam(exam);
+        UserExam userExam = upsertUserExam(user, examId, null);
+        setActiveExam(user, userExam);
         userRepository.save(user);
         return ResponseEntity.ok(ApiResponse.success("Exam selected", userMapper.toResponse(user)));
+    }
+
+    @GetMapping("/my-exams")
+    @Transactional
+    @Operation(summary = "Get all exams selected by current student")
+    public ResponseEntity<ApiResponse<List<UserExamResponse>>> getMyExams(
+            @AuthenticationPrincipal UserDetails userDetails) {
+        User user = userRepository.findByEmailWithExam(userDetails.getUsername()).orElseThrow();
+        List<UserExamResponse> exams = userExamRepository.findByUserIdOrderByExamDateAscCreatedAtAsc(user.getId())
+            .stream()
+            .map(ue -> toUserExamCard(user.getId(), ue))
+            .collect(Collectors.toList());
+        return ResponseEntity.ok(ApiResponse.success(exams));
+    }
+
+    @PostMapping("/my-exams")
+    @Transactional
+    @Operation(summary = "Add an exam for current student and set it active")
+    public ResponseEntity<ApiResponse<UserResponse>> addMyExam(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @Valid @RequestBody UserExamCreateRequest request) {
+        User user = userRepository.findByEmailWithExam(userDetails.getUsername()).orElseThrow();
+        UserExam userExam = upsertUserExam(user, request.getExamId(), request.getExamDate());
+        setActiveExam(user, userExam);
+        userRepository.save(user);
+        return ResponseEntity.ok(ApiResponse.success("Exam added", userMapper.toResponse(user)));
+    }
+
+    @PatchMapping("/my-exams/{userExamId}/date")
+    @Transactional
+    @Operation(summary = "Edit target exam date")
+    public ResponseEntity<ApiResponse<UserResponse>> updateExamDate(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable Long userExamId,
+            @Valid @RequestBody UserExamDateUpdateRequest request) {
+        User user = userRepository.findByEmailWithExam(userDetails.getUsername()).orElseThrow();
+        UserExam userExam = userExamRepository.findById(userExamId)
+            .filter(ue -> ue.getUser().getId().equals(user.getId()))
+            .orElseThrow(() -> new BadRequestException("Exam mapping not found"));
+
+        userExam.setExamDate(request.getExamDate());
+        userExamRepository.save(userExam);
+
+        if (Boolean.TRUE.equals(userExam.getIsActive())) {
+            user.setExamDate(request.getExamDate());
+            userRepository.save(user);
+        }
+
+        return ResponseEntity.ok(ApiResponse.success("Exam date updated", userMapper.toResponse(user)));
+    }
+
+    @PatchMapping("/my-exams/{userExamId}/active")
+    @Transactional
+    @Operation(summary = "Set active exam")
+    public ResponseEntity<ApiResponse<UserResponse>> setActiveExamEndpoint(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable Long userExamId) {
+        User user = userRepository.findByEmailWithExam(userDetails.getUsername()).orElseThrow();
+        UserExam userExam = userExamRepository.findById(userExamId)
+            .filter(ue -> ue.getUser().getId().equals(user.getId()))
+            .orElseThrow(() -> new BadRequestException("Exam mapping not found"));
+
+        setActiveExam(user, userExam);
+        userRepository.save(user);
+        return ResponseEntity.ok(ApiResponse.success("Active exam updated", userMapper.toResponse(user)));
+    }
+
+    @DeleteMapping("/my-exams/{userExamId}")
+    @Transactional
+    @Operation(summary = "Delete an exam from current student")
+    public ResponseEntity<ApiResponse<UserResponse>> deleteMyExam(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable Long userExamId) {
+        User user = userRepository.findByEmailWithExam(userDetails.getUsername()).orElseThrow();
+        List<UserExam> all = userExamRepository.findByUserIdOrderByCreatedAtAsc(user.getId());
+        if (all.size() <= 1) {
+            throw new BadRequestException("At least one exam must exist");
+        }
+
+        UserExam toDelete = all.stream()
+            .filter(ue -> ue.getId().equals(userExamId))
+            .findFirst()
+            .orElseThrow(() -> new BadRequestException("Exam mapping not found"));
+
+        boolean deletingActive = Boolean.TRUE.equals(toDelete.getIsActive());
+        userExamRepository.delete(toDelete);
+
+        if (deletingActive) {
+            List<UserExam> remaining = userExamRepository.findByUserIdOrderByExamDateAscCreatedAtAsc(user.getId());
+            UserExam next = remaining.stream()
+                .sorted(Comparator
+                    .comparing((UserExam ue) -> ue.getExamDate() == null ? LocalDate.MAX : ue.getExamDate())
+                    .thenComparing(UserExam::getCreatedAt, Comparator.nullsLast(Comparator.naturalOrder())))
+                .findFirst()
+                .orElseThrow(() -> new BadRequestException("No exam found after delete"));
+            setActiveExam(user, next);
+        }
+
+        userRepository.save(user);
+        return ResponseEntity.ok(ApiResponse.success("Exam deleted", userMapper.toResponse(user)));
     }
 
     @PostMapping("/exam-goal")
@@ -70,23 +190,36 @@ public class StudentController {
             @AuthenticationPrincipal UserDetails userDetails,
             @RequestBody ExamGoalRequest request) {
         User user = userRepository.findByEmailWithExam(userDetails.getUsername()).orElseThrow();
+        UserExam userExam;
+        if (request.getUserExamId() != null) {
+            userExam = userExamRepository.findById(request.getUserExamId())
+                .filter(ue -> ue.getUser().getId().equals(user.getId()))
+                .orElseThrow(() -> new BadRequestException("Exam mapping not found"));
+        } else {
+            userExam = userExamRepository.findByUserIdAndIsActiveTrue(user.getId())
+                .orElseThrow(() -> new BadRequestException("No active exam selected"));
+        }
 
-        user.setExamDate(request.getExamDate());
+        userExam.setExamDate(request.getExamDate());
 
-        java.time.LocalDate syllabusDate = request.getSyllabusTargetDate() != null
+        LocalDate syllabusDate = request.getSyllabusTargetDate() != null
             ? request.getSyllabusTargetDate()
             : request.getExamDate().minusDays(30);
-        user.setSyllabusTargetDate(syllabusDate);
+        userExam.setSyllabusTargetDate(syllabusDate);
 
-        if (user.getSelectedExam() != null) {
-            Double totalHours = topicRepository.sumEstimatedHoursByExamId(user.getSelectedExam().getId());
-            long daysRemaining = java.time.temporal.ChronoUnit.DAYS.between(
-                java.time.LocalDate.now(), request.getExamDate());
+        if (userExam.getExam() != null) {
+            Double totalHours = topicRepository.sumEstimatedHoursByExamId(userExam.getExam().getId());
+            long daysRemaining = ChronoUnit.DAYS.between(LocalDate.now(), request.getExamDate());
             if (totalHours != null && totalHours > 0 && daysRemaining > 0) {
                 double daily = Math.round((totalHours / daysRemaining) * 10.0) / 10.0;
-                user.setDailyTargetHours(daily);
-                user.setWeeklyTargetHours(Math.round(daily * 7 * 10.0) / 10.0);
+                userExam.setDailyTargetHours(daily);
+                userExam.setWeeklyTargetHours(Math.round(daily * 7 * 10.0) / 10.0);
             }
+        }
+
+        userExamRepository.save(userExam);
+        if (Boolean.TRUE.equals(userExam.getIsActive())) {
+            syncUserFromUserExam(user, userExam);
         }
 
         userRepository.save(user);
@@ -105,8 +238,72 @@ public class StudentController {
             daily = Math.round(daily * 2.0) / 2.0; // snap to 0.5 increments
             user.setDailyTargetHours(daily);
             user.setWeeklyTargetHours(Math.round(daily * 7 * 10.0) / 10.0);
+            final double finalDaily = daily;
+
+            userExamRepository.findByUserIdAndIsActiveTrue(user.getId()).ifPresent(active -> {
+                active.setDailyTargetHours(finalDaily);
+                active.setWeeklyTargetHours(Math.round(finalDaily * 7 * 10.0) / 10.0);
+                userExamRepository.save(active);
+            });
         }
         userRepository.save(user);
         return ResponseEntity.ok(ApiResponse.success("Study hours updated", userMapper.toResponse(user)));
+    }
+
+    private UserExam upsertUserExam(User user, Long examId, LocalDate examDate) {
+        Exam exam = examRepository.findById(examId)
+            .orElseThrow(() -> new BadRequestException("Invalid exam id: " + examId));
+
+        UserExam userExam = userExamRepository.findByUserIdAndExamId(user.getId(), examId)
+            .orElseGet(() -> UserExam.builder()
+                .user(user)
+                .exam(exam)
+                .isActive(false)
+                .build());
+
+        if (examDate != null) {
+            userExam.setExamDate(examDate);
+        }
+        return userExamRepository.save(userExam);
+    }
+
+    private void setActiveExam(User user, UserExam activeUserExam) {
+        List<UserExam> all = userExamRepository.findByUserIdOrderByCreatedAtAsc(user.getId());
+        for (UserExam ue : all) {
+            ue.setIsActive(ue.getId().equals(activeUserExam.getId()));
+        }
+        userExamRepository.saveAll(all);
+        syncUserFromUserExam(user, activeUserExam);
+    }
+
+    private void syncUserFromUserExam(User user, UserExam userExam) {
+        user.setSelectedExam(userExam.getExam());
+        user.setExamDate(userExam.getExamDate());
+        user.setSyllabusTargetDate(userExam.getSyllabusTargetDate());
+        user.setDailyTargetHours(userExam.getDailyTargetHours());
+        user.setWeeklyTargetHours(userExam.getWeeklyTargetHours());
+    }
+
+    private UserExamResponse toUserExamCard(Long userId, UserExam ue) {
+        Integer daysLeft = null;
+        if (ue.getExamDate() != null) {
+            daysLeft = (int) ChronoUnit.DAYS.between(LocalDate.now(), ue.getExamDate());
+        }
+        Long examId = ue.getExam().getId();
+        int totalSubjects = subjectRepository.countByExamId(examId);
+        int totalTopics = topicRepository.findByExamId(examId).size();
+        int completedTopics = studyProgressRepository.countCompletedByUserAndExam(userId, examId);
+        Double progress = totalTopics > 0 ? (completedTopics * 100.0 / totalTopics) : 0.0;
+        return UserExamResponse.builder()
+            .id(ue.getId())
+            .examId(examId)
+            .examName(ue.getExam().getName())
+            .examDate(ue.getExamDate())
+            .daysLeft(daysLeft)
+            .totalSubjects(totalSubjects)
+            .progressPercent(progress)
+            .isActive(ue.getIsActive())
+            .createdAt(ue.getCreatedAt())
+            .build();
     }
 }

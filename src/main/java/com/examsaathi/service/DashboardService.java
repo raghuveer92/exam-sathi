@@ -10,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -32,8 +33,10 @@ public class DashboardService {
         User user = userRepository.findById(userId)
             .orElseThrow(() -> new RuntimeException("User not found"));
 
+        List<UserExamResponse> examCards = buildExamCards(userId, user);
+
         if (user.getSelectedExam() == null) {
-            return buildEmptyDashboard(user);
+            return buildEmptyDashboard(user, examCards);
         }
 
         Long examId = user.getSelectedExam().getId();
@@ -49,8 +52,8 @@ public class DashboardService {
 
         // Today's stats
         LocalDateTime todayStart = LocalDate.now().atStartOfDay();
-        int todayCompleted = progressRepository.countCompletedSince(userId, todayStart);
-        double todayHours = studyLogRepository.findByUserIdAndStudyDate(userId, LocalDate.now())
+        int todayCompleted = progressRepository.countCompletedByUserAndExamSince(userId, examId, todayStart);
+        double todayHours = studyLogRepository.findByUserIdAndExamIdAndStudyDate(userId, examId, LocalDate.now())
             .map(DailyStudyLog::getHoursStudied).orElse(0.0);
 
         // Subject progress
@@ -60,7 +63,7 @@ public class DashboardService {
 
         // Weekly logs (last 7 days)
         List<DailyStudyLog> weeklyLogs = studyLogRepository
-            .findByUserIdAndStudyDateAfter(userId, LocalDate.now().minusDays(6));
+            .findByUserIdAndExamIdAndStudyDateAfter(userId, examId, LocalDate.now().minusDays(6));
 
         // Estimate remaining days
         double avgDailyTopics = calculateAverageDailyTopics(userId);
@@ -78,6 +81,7 @@ public class DashboardService {
             .todayHours(todayHours)
             .todayTopicsCompleted(todayCompleted)
             .estimatedDaysToComplete(estimatedDays)
+                .myExams(examCards)
             .subjectProgress(subjectProgress)
             .weeklyLogs(weeklyLogs.stream().map(mapper::toDailyLogResponse).collect(Collectors.toList()))
             .build();
@@ -104,14 +108,54 @@ public class DashboardService {
             .build();
     }
 
-    private DashboardResponse buildEmptyDashboard(User user) {
+    private DashboardResponse buildEmptyDashboard(User user, List<UserExamResponse> examCards) {
         return DashboardResponse.builder()
             .user(mapper.toResponse(user))
             .studyStreakDays(user.getStudyStreakDays())
             .overallCompletionPercent(0.0)
+            .myExams(examCards)
             .subjectProgress(new ArrayList<>())
             .weeklyLogs(new ArrayList<>())
             .build();
+    }
+
+    private List<UserExamResponse> buildExamCards(Long userId, User user) {
+        if (user.getUserExams() == null || user.getUserExams().isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        return user.getUserExams().stream()
+            .sorted(Comparator
+                .comparing((UserExam ue) -> ue.getExamDate() == null ? LocalDate.MAX : ue.getExamDate())
+                .thenComparing(UserExam::getCreatedAt, Comparator.nullsLast(Comparator.naturalOrder())))
+            .map(ue -> {
+                Long examId = ue.getExam().getId();
+                int totalSubjects = subjectRepository.countByExamId(examId);
+                List<Topic> examTopics = topicRepository.findByExamId(examId);
+                int totalTopics = examTopics.size();
+                int completedTopics = progressRepository.countCompletedByUserAndExam(userId, examId);
+                double progressPercent = totalTopics > 0
+                    ? Math.round((completedTopics * 100.0 / totalTopics) * 10.0) / 10.0
+                    : 0.0;
+
+                Integer daysLeft = null;
+                if (ue.getExamDate() != null) {
+                    daysLeft = (int) java.time.temporal.ChronoUnit.DAYS.between(LocalDate.now(), ue.getExamDate());
+                }
+
+                return UserExamResponse.builder()
+                    .id(ue.getId())
+                    .examId(examId)
+                    .examName(ue.getExam().getName())
+                    .examDate(ue.getExamDate())
+                    .daysLeft(daysLeft)
+                    .totalSubjects(totalSubjects)
+                    .progressPercent(progressPercent)
+                    .isActive(ue.getIsActive())
+                    .createdAt(ue.getCreatedAt())
+                    .build();
+            })
+            .collect(Collectors.toList());
     }
 
     private double calculateAverageDailyTopics(Long userId) {

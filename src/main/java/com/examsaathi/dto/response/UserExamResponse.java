@@ -1,0 +1,21 @@
+package com.examsaathi.dto.response;
+
+import lombok.Builder;
+import lombok.Data;
+
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+
+@Data
+@Builder
+public class UserExamResponse {
+    private Long id;
+    private Long examId;
+    private String examName;
+    private LocalDate examDate;
+    private Integer daysLeft;
+    private Integer totalSubjects;
+    private Double progressPercent;
+    private Boolean isActive;
+    private LocalDateTime createdAt;
+}

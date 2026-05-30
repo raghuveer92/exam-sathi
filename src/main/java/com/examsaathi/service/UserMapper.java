@@ -5,7 +5,10 @@ import com.examsaathi.entity.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
+import java.time.LocalDate;
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
 import java.util.stream.Collectors;
 
 /**
@@ -21,6 +24,22 @@ public class UserMapper {
             long days = java.time.temporal.ChronoUnit.DAYS.between(java.time.LocalDate.now(), user.getExamDate());
             daysUntilExam = (int) days;
         }
+
+        List<UserExamResponse> userExams = user.getUserExams() == null
+            ? Collections.emptyList()
+            : user.getUserExams().stream()
+                .sorted(Comparator.comparing(UserExam::getCreatedAt, Comparator.nullsLast(Comparator.naturalOrder())))
+                .map(this::toUserExamResponse)
+                .collect(Collectors.toList());
+
+        Long activeUserExamId = user.getUserExams() == null
+            ? null
+            : user.getUserExams().stream()
+                .filter(ue -> Boolean.TRUE.equals(ue.getIsActive()))
+                .map(UserExam::getId)
+                .findFirst()
+                .orElse(null);
+
         return UserResponse.builder()
             .id(user.getId())
             .email(user.getEmail())
@@ -39,7 +58,25 @@ public class UserMapper {
             .studyStreakDays(user.getStudyStreakDays())
             .lastStudyDate(user.getLastStudyDate())
             .roles(user.getRoles().stream().map(r -> r.getName().name()).collect(Collectors.toList()))
+            .activeUserExamId(activeUserExamId)
+            .userExams(userExams)
             .createdAt(user.getCreatedAt())
+            .build();
+    }
+
+    public UserExamResponse toUserExamResponse(UserExam userExam) {
+        Integer daysLeft = null;
+        if (userExam.getExamDate() != null) {
+            daysLeft = (int) java.time.temporal.ChronoUnit.DAYS.between(LocalDate.now(), userExam.getExamDate());
+        }
+        return UserExamResponse.builder()
+            .id(userExam.getId())
+            .examId(userExam.getExam().getId())
+            .examName(userExam.getExam().getName())
+            .examDate(userExam.getExamDate())
+            .daysLeft(daysLeft)
+            .isActive(userExam.getIsActive())
+            .createdAt(userExam.getCreatedAt())
             .build();
     }
 
