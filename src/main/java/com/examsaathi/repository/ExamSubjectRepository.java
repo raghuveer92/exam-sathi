@@ -17,4 +17,6 @@ public interface ExamSubjectRepository extends JpaRepository<ExamSubject, Long> 
     Optional<ExamSubject> findByExamIdAndSubjectId(Long examId, Long subjectId);
 
     int countByExamIdAndIsActiveTrue(Long examId);
+
+    long countBySubjectId(Long subjectId);
 }

@@ -106,11 +106,18 @@ public class SubjectService {
     }
 
     @Transactional
-    public void deleteSubject(Long id) {
-        if (!subjectRepository.existsById(id)) {
-            throw new ResourceNotFoundException("Subject", id);
+    public void deleteSubject(Long id, Long examId) {
+        Subject subject = subjectRepository.findById(id)
+            .orElseThrow(() -> new ResourceNotFoundException("Subject", id));
+
+        ExamSubject examSubject = examSubjectRepository.findByExamIdAndSubjectId(examId, id)
+            .orElseThrow(() -> new ResourceNotFoundException("Subject for exam", id));
+
+        examSubjectRepository.delete(examSubject);
+
+        if (examSubjectRepository.countBySubjectId(subject.getId()) == 0) {
+            subjectRepository.delete(subject);
         }
-        subjectRepository.deleteById(id);
     }
 
     @Transactional

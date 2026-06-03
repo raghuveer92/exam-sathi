@@ -72,9 +72,11 @@ public class SubjectController {
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     @SecurityRequirement(name = "bearerAuth")
-    @Operation(summary = "Delete subject (Admin)")
-    public ResponseEntity<ApiResponse<Void>> deleteSubject(@PathVariable Long id) {
-        subjectService.deleteSubject(id);
-        return ResponseEntity.ok(ApiResponse.success("Subject deleted", null));
+    @Operation(summary = "Remove subject from an exam (Admin)")
+    public ResponseEntity<ApiResponse<Void>> deleteSubject(
+            @PathVariable Long id,
+            @RequestParam Long examId) {
+        subjectService.deleteSubject(id, examId);
+        return ResponseEntity.ok(ApiResponse.success("Subject removed from exam", null));
     }
 }
