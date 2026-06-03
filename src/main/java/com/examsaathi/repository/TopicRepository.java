@@ -43,6 +43,14 @@ public interface TopicRepository extends JpaRepository<Topic, Long> {
            "WHERE es.exam.id = :examId AND es.isActive = true AND s.isActive = true AND t.isActive = true")
     Double sumEstimatedHoursByExamId(@Param("examId") Long examId);
 
-       @Query("SELECT COALESCE(SUM(t.estimatedHours), 0) FROM Topic t WHERE t.chapter.subject.id IN :subjectIds AND t.isActive = true")
-       Double sumEstimatedHoursBySubjectIds(@Param("subjectIds") List<Long> subjectIds);
+    @Query("SELECT COALESCE(SUM(t.estimatedHours), 0) FROM Topic t WHERE t.chapter.subject.id IN :subjectIds AND t.isActive = true")
+    Double sumEstimatedHoursBySubjectIds(@Param("subjectIds") List<Long> subjectIds);
+
+    @Query("""
+        SELECT t FROM Topic t
+        JOIN FETCH t.chapter c
+        JOIN FETCH c.subject
+        WHERE t.id = :id
+        """)
+    java.util.Optional<Topic> findByIdWithChapterAndSubject(@Param("id") Long id);
 }

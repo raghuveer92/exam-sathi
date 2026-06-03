@@ -10,4 +10,5 @@ import java.util.List;
 public interface ExamRepository extends JpaRepository<Exam, Long> {
     List<Exam> findByIsActiveTrueOrderByNameAsc();
     boolean existsByCode(String code);
+    java.util.Optional<Exam> findByNameIgnoreCase(String name);
 }
