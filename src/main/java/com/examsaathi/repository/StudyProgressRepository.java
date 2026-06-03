@@ -13,19 +13,21 @@ import java.util.Optional;
 @Repository
 public interface StudyProgressRepository extends JpaRepository<StudyProgress, Long> {
 
-    Optional<StudyProgress> findByUserIdAndTopicId(Long userId, Long topicId);
+    Optional<StudyProgress> findByUserExamIdAndTopicId(Long userExamId, Long topicId);
 
     List<StudyProgress> findByUserId(Long userId);
 
     /** Count completed topics for a user in a subject */
     @Query("SELECT COUNT(sp) FROM StudyProgress sp WHERE sp.user.id = :userId " +
+           "AND sp.userExam.exam.id = :examId " +
            "AND sp.topic.chapter.subject.id = :subjectId AND sp.isCompleted = true")
-    int countCompletedByUserAndSubject(@Param("userId") Long userId,
-                                       @Param("subjectId") Long subjectId);
+    int countCompletedByUserAndExamAndSubject(@Param("userId") Long userId,
+                                              @Param("examId") Long examId,
+                                              @Param("subjectId") Long subjectId);
 
     /** Count completed topics for a user in an exam */
     @Query("SELECT COUNT(sp) FROM StudyProgress sp WHERE sp.user.id = :userId " +
-           "AND sp.topic.chapter.subject.exam.id = :examId AND sp.isCompleted = true")
+           "AND sp.userExam.exam.id = :examId AND sp.isCompleted = true")
     int countCompletedByUserAndExam(@Param("userId") Long userId,
                                     @Param("examId") Long examId);
 
@@ -35,7 +37,7 @@ public interface StudyProgressRepository extends JpaRepository<StudyProgress, Lo
     int countCompletedSince(@Param("userId") Long userId, @Param("since") LocalDateTime since);
 
     @Query("SELECT COUNT(sp) FROM StudyProgress sp WHERE sp.user.id = :userId " +
-           "AND sp.topic.chapter.subject.exam.id = :examId " +
+           "AND sp.userExam.exam.id = :examId " +
            "AND sp.isCompleted = true AND sp.completedAt >= :since")
     int countCompletedByUserAndExamSince(@Param("userId") Long userId,
                                          @Param("examId") Long examId,
@@ -43,14 +45,14 @@ public interface StudyProgressRepository extends JpaRepository<StudyProgress, Lo
 
     /** All completed progress for a user in an exam (for analytics) */
     @Query("SELECT sp FROM StudyProgress sp WHERE sp.user.id = :userId " +
-           "AND sp.topic.chapter.subject.exam.id = :examId AND sp.isCompleted = true")
+           "AND sp.userExam.exam.id = :examId AND sp.isCompleted = true")
     List<StudyProgress> findCompletedByUserAndExam(@Param("userId") Long userId,
                                                     @Param("examId") Long examId);
 
     /** Batch fetch progress records for a user and a list of topic IDs */
-    @Query("SELECT sp FROM StudyProgress sp WHERE sp.user.id = :userId AND sp.topic.id IN :topicIds")
-    List<StudyProgress> findByUserIdAndTopicIdIn(@Param("userId") Long userId,
-                                                  @Param("topicIds") List<Long> topicIds);
+    @Query("SELECT sp FROM StudyProgress sp WHERE sp.userExam.id = :userExamId AND sp.topic.id IN :topicIds")
+    List<StudyProgress> findByUserExamIdAndTopicIdIn(@Param("userExamId") Long userExamId,
+                                                     @Param("topicIds") List<Long> topicIds);
 
     /** Delete all progress records for a topic (used before topic deletion) */
     void deleteByTopicId(Long topicId);

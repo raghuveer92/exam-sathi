@@ -6,6 +6,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
@@ -81,6 +82,13 @@ public class UserMapper {
     }
 
     public ExamResponse toExamResponse(Exam exam, boolean includeSubjects) {
+        List<ExamSubject> activeExamSubjects = exam.getExamSubjects() == null
+            ? new ArrayList<>()
+            : exam.getExamSubjects().stream()
+                .filter(es -> Boolean.TRUE.equals(es.getIsActive()) && Boolean.TRUE.equals(es.getSubject().getIsActive()))
+                .sorted(Comparator.comparing(ExamSubject::getDisplayOrder))
+                .collect(Collectors.toList());
+
         return ExamResponse.builder()
             .id(exam.getId())
             .name(exam.getName())
@@ -89,24 +97,32 @@ public class UserMapper {
             .iconUrl(exam.getIconUrl())
             .colorCode(exam.getColorCode())
             .isActive(exam.getIsActive())
-            .subjectCount(exam.getSubjects().size())
+            .subjectCount(activeExamSubjects.size())
             .createdAt(exam.getCreatedAt())
             .subjects(includeSubjects
-                ? exam.getSubjects().stream().map(s -> toSubjectResponse(s, false)).collect(Collectors.toList())
+                ? activeExamSubjects.stream().map(es -> toSubjectResponse(es, false)).collect(Collectors.toList())
                 : Collections.emptyList())
             .build();
     }
 
     public SubjectResponse toSubjectResponse(Subject subject, boolean includeChapters) {
+        return toSubjectResponse(subject, null, includeChapters);
+    }
+
+    public SubjectResponse toSubjectResponse(ExamSubject examSubject, boolean includeChapters) {
+        return toSubjectResponse(examSubject.getSubject(), examSubject, includeChapters);
+    }
+
+    private SubjectResponse toSubjectResponse(Subject subject, ExamSubject examSubject, boolean includeChapters) {
         return SubjectResponse.builder()
             .id(subject.getId())
-            .examId(subject.getExam().getId())
-            .examName(subject.getExam().getName())
+            .examId(examSubject != null ? examSubject.getExam().getId() : null)
+            .examName(examSubject != null ? examSubject.getExam().getName() : null)
             .name(subject.getName())
             .description(subject.getDescription())
             .iconName(subject.getIconName())
             .colorCode(subject.getColorCode())
-            .displayOrder(subject.getDisplayOrder())
+            .displayOrder(examSubject != null ? examSubject.getDisplayOrder() : 0)
             .isActive(subject.getIsActive())
             .topicCount(subject.getChapters().stream()
                 .mapToInt(c -> c.getTopics().size()).sum())

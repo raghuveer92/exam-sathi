@@ -13,6 +13,7 @@ import com.examsaathi.entity.User;
 import com.examsaathi.entity.UserExam;
 import com.examsaathi.exception.BadRequestException;
 import com.examsaathi.repository.ExamRepository;
+import com.examsaathi.repository.ExamSubjectRepository;
 import com.examsaathi.repository.SubjectRepository;
 import com.examsaathi.repository.StudyProgressRepository;
 import com.examsaathi.repository.TopicRepository;
@@ -51,6 +52,7 @@ public class StudentController {
     private final UserMapper userMapper;
     private final TopicRepository topicRepository;
     private final SubjectRepository subjectRepository;
+    private final ExamSubjectRepository examSubjectRepository;
     private final StudyProgressRepository studyProgressRepository;
 
     @GetMapping("/me")
@@ -294,7 +296,7 @@ public class StudentController {
             daysLeft = (int) ChronoUnit.DAYS.between(LocalDate.now(), ue.getExamDate());
         }
         Long examId = ue.getExam().getId();
-        int totalSubjects = subjectRepository.countByExamId(examId);
+        int totalSubjects = examSubjectRepository.countByExamIdAndIsActiveTrue(examId);
         int totalTopics = topicRepository.findByExamId(examId).size();
         int completedTopics = studyProgressRepository.countCompletedByUserAndExam(userId, examId);
         Double progress = totalTopics > 0 ? (completedTopics * 100.0 / totalTopics) : 0.0;

@@ -20,7 +20,11 @@ public interface TopicRepository extends JpaRepository<Topic, Long> {
     int countBySubjectId(@Param("subjectId") Long subjectId);
 
     /** All topics for an exam */
-    @Query("SELECT t FROM Topic t WHERE t.chapter.subject.exam.id = :examId AND t.isActive = true")
+    @Query("SELECT DISTINCT t FROM ExamSubject es " +
+           "JOIN es.subject s " +
+           "JOIN s.chapters c " +
+           "JOIN c.topics t " +
+           "WHERE es.exam.id = :examId AND es.isActive = true AND s.isActive = true AND t.isActive = true")
     List<Topic> findByExamId(@Param("examId") Long examId);
 
     /** Sum estimated hours for a subject */
@@ -29,7 +33,10 @@ public interface TopicRepository extends JpaRepository<Topic, Long> {
     Double sumEstimatedHoursBySubjectId(@Param("subjectId") Long subjectId);
 
     /** Sum estimated hours for an entire exam */
-    @Query("SELECT COALESCE(SUM(t.estimatedHours), 0) FROM Topic t " +
-           "WHERE t.chapter.subject.exam.id = :examId AND t.isActive = true")
+    @Query("SELECT COALESCE(SUM(t.estimatedHours), 0) FROM ExamSubject es " +
+           "JOIN es.subject s " +
+           "JOIN s.chapters c " +
+           "JOIN c.topics t " +
+           "WHERE es.exam.id = :examId AND es.isActive = true AND s.isActive = true AND t.isActive = true")
     Double sumEstimatedHoursByExamId(@Param("examId") Long examId);
 }

@@ -50,7 +50,7 @@ public class Exam {
 
     @OneToMany(mappedBy = "exam", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
-    private List<Subject> subjects = new ArrayList<>();
+    private List<ExamSubject> examSubjects = new ArrayList<>();
 
     @CreatedDate
     @Column(nullable = false, updatable = false)

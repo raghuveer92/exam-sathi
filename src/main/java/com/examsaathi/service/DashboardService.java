@@ -24,6 +24,7 @@ public class DashboardService {
 
     private final UserRepository userRepository;
     private final SubjectRepository subjectRepository;
+    private final ExamSubjectRepository examSubjectRepository;
     private final TopicRepository topicRepository;
     private final StudyProgressRepository progressRepository;
     private final DailyStudyLogRepository studyLogRepository;
@@ -34,21 +35,14 @@ public class DashboardService {
             .orElseThrow(() -> new RuntimeException("User not found"));
 
         List<UserExamResponse> examCards = buildExamCards(userId, user);
+        OverallProgressSummary overallSummary = buildOverallSummary(userId, user);
 
         if (user.getSelectedExam() == null) {
-            return buildEmptyDashboard(user, examCards);
+            return buildEmptyDashboard(user, examCards, overallSummary);
         }
 
         Long examId = user.getSelectedExam().getId();
-        List<Subject> subjects = subjectRepository.findByExamIdAndIsActiveTrueOrderByDisplayOrderAsc(examId);
-
-        // Calculate overall topic counts
-        List<Topic> allTopics = topicRepository.findByExamId(examId);
-        int totalTopics = allTopics.size();
-        int completedTopics = progressRepository.countCompletedByUserAndExam(userId, examId);
-        double overallPercent = totalTopics > 0
-            ? Math.round((completedTopics * 100.0 / totalTopics) * 10.0) / 10.0
-            : 0.0;
+        List<ExamSubject> examSubjects = examSubjectRepository.findByExamIdAndIsActiveTrueOrderByDisplayOrderAsc(examId);
 
         // Today's stats
         LocalDateTime todayStart = LocalDate.now().atStartOfDay();
@@ -57,8 +51,8 @@ public class DashboardService {
             .map(DailyStudyLog::getHoursStudied).orElse(0.0);
 
         // Subject progress
-        List<SubjectProgressResponse> subjectProgress = subjects.stream()
-            .map(s -> buildSubjectProgress(userId, s))
+        List<SubjectProgressResponse> subjectProgress = examSubjects.stream()
+            .map(es -> buildSubjectProgress(userId, examId, es))
             .collect(Collectors.toList());
 
         // Weekly logs (last 7 days)
@@ -68,16 +62,16 @@ public class DashboardService {
         // Estimate remaining days
         double avgDailyTopics = calculateAverageDailyTopics(userId);
         Long estimatedDays = avgDailyTopics > 0
-            ? (long) Math.ceil((totalTopics - completedTopics) / avgDailyTopics)
+            ? (long) Math.ceil((overallSummary.totalTopics - overallSummary.completedTopics) / avgDailyTopics)
             : null;
 
         return DashboardResponse.builder()
             .user(mapper.toResponse(user))
             .studyStreakDays(user.getStudyStreakDays())
-            .overallCompletionPercent(overallPercent)
-            .totalTopics(totalTopics)
-            .completedTopics(completedTopics)
-            .remainingTopics(totalTopics - completedTopics)
+            .overallCompletionPercent(overallSummary.overallPercent)
+            .totalTopics(overallSummary.totalTopics)
+            .completedTopics(overallSummary.completedTopics)
+            .remainingTopics(overallSummary.totalTopics - overallSummary.completedTopics)
             .todayHours(todayHours)
             .todayTopicsCompleted(todayCompleted)
             .estimatedDaysToComplete(estimatedDays)
@@ -87,9 +81,10 @@ public class DashboardService {
             .build();
     }
 
-    private SubjectProgressResponse buildSubjectProgress(Long userId, Subject subject) {
+    private SubjectProgressResponse buildSubjectProgress(Long userId, Long examId, ExamSubject examSubject) {
+        Subject subject = examSubject.getSubject();
         int totalTopics = topicRepository.countBySubjectId(subject.getId());
-        int completed = progressRepository.countCompletedByUserAndSubject(userId, subject.getId());
+        int completed = progressRepository.countCompletedByUserAndExamAndSubject(userId, examId, subject.getId());
         double percent = totalTopics > 0
             ? Math.round((completed * 100.0 / totalTopics) * 10.0) / 10.0
             : 0.0;
@@ -100,7 +95,7 @@ public class DashboardService {
             .subjectName(subject.getName())
             .iconName(subject.getIconName())
             .colorCode(subject.getColorCode())
-            .displayOrder(subject.getDisplayOrder())
+            .displayOrder(examSubject.getDisplayOrder())
             .totalTopics(totalTopics)
             .completedTopics(completed)
             .completionPercent(percent)
@@ -108,15 +103,42 @@ public class DashboardService {
             .build();
     }
 
-    private DashboardResponse buildEmptyDashboard(User user, List<UserExamResponse> examCards) {
+    private DashboardResponse buildEmptyDashboard(User user, List<UserExamResponse> examCards, OverallProgressSummary overallSummary) {
         return DashboardResponse.builder()
             .user(mapper.toResponse(user))
             .studyStreakDays(user.getStudyStreakDays())
-            .overallCompletionPercent(0.0)
+            .overallCompletionPercent(overallSummary.overallPercent)
+            .totalTopics(overallSummary.totalTopics)
+            .completedTopics(overallSummary.completedTopics)
+            .remainingTopics(overallSummary.totalTopics - overallSummary.completedTopics)
             .myExams(examCards)
             .subjectProgress(new ArrayList<>())
             .weeklyLogs(new ArrayList<>())
             .build();
+    }
+
+    private OverallProgressSummary buildOverallSummary(Long userId, User user) {
+        if (user.getUserExams() == null || user.getUserExams().isEmpty()) {
+            return new OverallProgressSummary(0, 0, 0.0);
+        }
+
+        int totalTopics = 0;
+        int completedTopics = 0;
+
+        for (UserExam userExam : user.getUserExams()) {
+            Long examId = userExam.getExam().getId();
+            totalTopics += topicRepository.findByExamId(examId).size();
+            completedTopics += progressRepository.countCompletedByUserAndExam(userId, examId);
+        }
+
+        double overallPercent = totalTopics > 0
+            ? Math.round((completedTopics * 100.0 / totalTopics) * 10.0) / 10.0
+            : 0.0;
+
+        return new OverallProgressSummary(totalTopics, completedTopics, overallPercent);
+    }
+
+    private record OverallProgressSummary(int totalTopics, int completedTopics, double overallPercent) {
     }
 
     private List<UserExamResponse> buildExamCards(Long userId, User user) {
@@ -130,7 +152,7 @@ public class DashboardService {
                 .thenComparing(UserExam::getCreatedAt, Comparator.nullsLast(Comparator.naturalOrder())))
             .map(ue -> {
                 Long examId = ue.getExam().getId();
-                int totalSubjects = subjectRepository.countByExamId(examId);
+                int totalSubjects = examSubjectRepository.countByExamIdAndIsActiveTrue(examId);
                 List<Topic> examTopics = topicRepository.findByExamId(examId);
                 int totalTopics = examTopics.size();
                 int completedTopics = progressRepository.countCompletedByUserAndExam(userId, examId);

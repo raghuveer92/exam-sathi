@@ -32,6 +32,9 @@ public class Subject {
     @Column(nullable = false, length = 100)
     private String name;
 
+    @Column(name = "normalized_name", nullable = false, length = 100)
+    private String normalizedName;
+
     @Column(length = 500)
     private String description;
 
@@ -46,18 +49,13 @@ public class Subject {
     @Column(nullable = false, length = 10)
     private String colorCode;
 
-    /** Display order within the exam */
-    @Column(nullable = false)
-    @Builder.Default
-    private Integer displayOrder = 0;
-
     @Column(nullable = false)
     @Builder.Default
     private Boolean isActive = true;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "exam_id", nullable = false)
-    private Exam exam;
+    @OneToMany(mappedBy = "subject", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    private List<ExamSubject> examSubjects = new ArrayList<>();
 
     @OneToMany(mappedBy = "subject", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default

@@ -23,6 +23,7 @@ public class DataInitializer implements CommandLineRunner {
     private final UserRepository userRepository;
     private final ExamRepository examRepository;
     private final SubjectRepository subjectRepository;
+    private final ExamSubjectRepository examSubjectRepository;
     private final ChapterRepository chapterRepository;
     private final TopicRepository topicRepository;
     private final PasswordEncoder passwordEncoder;
@@ -74,9 +75,25 @@ public class DataInitializer implements CommandLineRunner {
 
     // ── Helpers ──────────────────────────────────────────────────────────────
     private Subject sub(Exam exam, String name, String desc, String icon, String color, int order) {
-        return subjectRepository.save(Subject.builder()
-            .name(name).description(desc).iconName(icon).colorCode(color)
-            .displayOrder(order).isActive(true).exam(exam).build());
+        Subject subject = subjectRepository.findByNormalizedName(normalize(name))
+            .orElseGet(() -> subjectRepository.save(Subject.builder()
+                .name(name)
+                .normalizedName(normalize(name))
+                .description(desc)
+                .iconName(icon)
+                .colorCode(color)
+                .isActive(true)
+                .build()));
+
+        examSubjectRepository.findByExamIdAndSubjectId(exam.getId(), subject.getId())
+            .orElseGet(() -> examSubjectRepository.save(ExamSubject.builder()
+                .exam(exam)
+                .subject(subject)
+                .displayOrder(order)
+                .isActive(true)
+                .build()));
+
+        return subject;
     }
 
     private Chapter ch(Subject subject, String title, String desc, int order) {
@@ -88,6 +105,10 @@ public class DataInitializer implements CommandLineRunner {
         topicRepository.save(Topic.builder()
             .title(title).estimatedHours(hrs)
             .difficultyLevel(diff).orderIndex(order).isActive(true).chapter(chapter).build());
+    }
+
+    private String normalize(String value) {
+        return value.trim().replaceAll("\\s+", " ").toLowerCase(java.util.Locale.ROOT);
     }
 
     // ── CBSE Class 10 ────────────────────────────────────────────────────────

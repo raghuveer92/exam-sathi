@@ -12,6 +12,7 @@ import com.examsaathi.exception.ResourceNotFoundException;
 import com.examsaathi.repository.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,6 +35,8 @@ public class StudyProgressService {
     private final SubjectRepository subjectRepository;
     private final ChapterRepository chapterRepository;
     private final UserRepository userRepository;
+    private final UserExamRepository userExamRepository;
+    private final ExamSubjectRepository examSubjectRepository;
     private final UserMapper mapper;
 
     /** Mark a topic complete or update study hours */
@@ -41,12 +44,14 @@ public class StudyProgressService {
     public void updateProgress(Long userId, ProgressUpdateRequest request) {
         Topic topic = topicRepository.findById(request.getTopicId())
             .orElseThrow(() -> new ResourceNotFoundException("Topic", request.getTopicId()));
+        UserExam activeUserExam = getActiveUserExam(userId);
+        ensureTopicBelongsToExam(activeUserExam.getExam().getId(), topic.getChapter().getSubject().getId());
 
         StudyProgress progress = progressRepository
-            .findByUserIdAndTopicId(userId, request.getTopicId())
+            .findByUserExamIdAndTopicId(activeUserExam.getId(), request.getTopicId())
             .orElseGet(() -> {
                 User user = userRepository.findById(userId).orElseThrow();
-                return StudyProgress.builder().user(user).topic(topic).build();
+                return StudyProgress.builder().user(user).userExam(activeUserExam).topic(topic).build();
             });
 
         boolean wasCompleted = Boolean.TRUE.equals(progress.getIsCompleted());
@@ -59,7 +64,7 @@ public class StudyProgressService {
             progress.setStatus(StudyProgress.TopicStatus.COMPLETED);
             if (!wasCompleted) {
                 progress.setCompletedAt(LocalDateTime.now());
-                updateDailyLogTopicCount(userId, LocalDate.now(), topic.getChapter().getSubject().getExam().getId());
+                updateDailyLogTopicCount(userId, LocalDate.now(), activeUserExam.getExam().getId());
             }
         } else if (request.getActualHours() != null && request.getActualHours() > 0) {
             progress.setStatus(StudyProgress.TopicStatus.IN_PROGRESS);
@@ -83,19 +88,14 @@ public class StudyProgressService {
         Long activeExamId = user.getSelectedExam().getId();
         Exam activeExamRef = Exam.builder().id(activeExamId).build();
 
-        DailyStudyLog log = studyLogRepository
-            .findByUserIdAndExamIdAndStudyDate(userId, activeExamId, request.getStudyDate())
-            .orElseGet(() -> DailyStudyLog.builder()
-                .user(user)
-                .exam(activeExamRef)
-                .studyDate(request.getStudyDate())
-                .hoursStudied(0.0)
-                .build());
+        DailyStudyLog log = findOrCreateDailyLog(user, activeExamRef, request.getStudyDate());
 
         // Accumulate hours (app sends deltas, not totals)
         double existing = log.getHoursStudied() != null ? log.getHoursStudied() : 0.0;
         log.setHoursStudied(existing + request.getHoursStudied());
-        log.setTopicsCompleted(request.getTopicsCompleted());
+        int existingTopics = log.getTopicsCompleted() != null ? log.getTopicsCompleted() : 0;
+        int requestTopics = request.getTopicsCompleted() != null ? request.getTopicsCompleted() : 0;
+        log.setTopicsCompleted(existingTopics + requestTopics);
         studyLogRepository.save(log);
 
         // Update last study date and streak
@@ -132,7 +132,7 @@ public class StudyProgressService {
 
         Map<Long, StudyProgress> progressMap = allTopicIds.isEmpty()
             ? Collections.emptyMap()
-            : progressRepository.findByUserIdAndTopicIdIn(userId, allTopicIds)
+            : progressRepository.findByUserExamIdAndTopicIdIn(getActiveUserExam(userId).getId(), allTopicIds)
                 .stream().collect(Collectors.toMap(sp -> sp.getTopic().getId(), sp -> sp));
 
         int totalTopics = 0;
@@ -218,15 +218,16 @@ public class StudyProgressService {
 
     /** Get subject-wise progress for a student */
     public List<SubjectProgressResponse> getSubjectProgress(Long userId, Long examId) {
-        return subjectRepository.findByExamIdAndIsActiveTrueOrderByDisplayOrderAsc(examId)
+        return examSubjectRepository.findByExamIdAndIsActiveTrueOrderByDisplayOrderAsc(examId)
             .stream()
-            .map(s -> buildSubjectProgress(userId, s))
+            .map(es -> buildSubjectProgress(userId, examId, es))
             .collect(Collectors.toList());
     }
 
-    private SubjectProgressResponse buildSubjectProgress(Long userId, Subject subject) {
+    private SubjectProgressResponse buildSubjectProgress(Long userId, Long examId, ExamSubject examSubject) {
+        Subject subject = examSubject.getSubject();
         int totalTopics = topicRepository.countBySubjectId(subject.getId());
-        int completed = progressRepository.countCompletedByUserAndSubject(userId, subject.getId());
+        int completed = progressRepository.countCompletedByUserAndExamAndSubject(userId, examId, subject.getId());
         double percent = totalTopics > 0
             ? Math.round((completed * 100.0 / totalTopics) * 10.0) / 10.0
             : 0.0;
@@ -237,7 +238,7 @@ public class StudyProgressService {
             .subjectName(subject.getName())
             .iconName(subject.getIconName())
             .colorCode(subject.getColorCode())
-            .displayOrder(subject.getDisplayOrder())
+                .displayOrder(examSubject.getDisplayOrder())
             .totalTopics(totalTopics)
             .completedTopics(completed)
             .completionPercent(percent)
@@ -245,16 +246,60 @@ public class StudyProgressService {
             .build();
     }
 
+            private UserExam getActiveUserExam(Long userId) {
+            return userExamRepository.findByUserIdAndIsActiveTrue(userId)
+                .orElseThrow(() -> new IllegalStateException("No active exam selected"));
+            }
+
+            private void ensureTopicBelongsToExam(Long examId, Long subjectId) {
+            examSubjectRepository.findByExamIdAndSubjectId(examId, subjectId)
+                .orElseThrow(() -> new IllegalStateException("Topic does not belong to the active exam"));
+            }
+
     /** Update today's daily log topic count */
     private void updateDailyLogTopicCount(Long userId, LocalDate date, Long examId) {
         User user = userRepository.findById(userId).orElseThrow();
         Exam examRef = Exam.builder().id(examId).build();
-        DailyStudyLog log = studyLogRepository
-            .findByUserIdAndExamIdAndStudyDate(userId, examId, date)
-            .orElseGet(() -> DailyStudyLog.builder()
-                .user(user).exam(examRef).studyDate(date).hoursStudied(0.0).build());
+        DailyStudyLog log = findOrCreateDailyLog(user, examRef, date);
         log.setTopicsCompleted((log.getTopicsCompleted() != null ? log.getTopicsCompleted() : 0) + 1);
-        studyLogRepository.save(log);
+        saveDailyLogHandlingLegacyUniqueConstraint(log);
+    }
+
+    private DailyStudyLog findOrCreateDailyLog(User user, Exam examRef, LocalDate studyDate) {
+        Long examId = examRef.getId();
+        return studyLogRepository
+            .findByUserIdAndExamIdAndStudyDate(user.getId(), examId, studyDate)
+            .or(() -> studyLogRepository.findByUserIdAndStudyDate(user.getId(), studyDate))
+            .map(existing -> {
+                if (existing.getExam() == null && examId != null) {
+                    existing.setExam(examRef);
+                }
+                return existing;
+            })
+            .orElseGet(() -> DailyStudyLog.builder()
+                .user(user)
+                .exam(examRef)
+                .studyDate(studyDate)
+                .hoursStudied(0.0)
+                .topicsCompleted(0)
+                .build());
+    }
+
+    private void saveDailyLogHandlingLegacyUniqueConstraint(DailyStudyLog log) {
+        try {
+            studyLogRepository.save(log);
+        } catch (DataIntegrityViolationException ex) {
+            DailyStudyLog legacyLog = studyLogRepository
+                .findByUserIdAndStudyDate(log.getUser().getId(), log.getStudyDate())
+                .orElseThrow(() -> ex);
+
+            if (legacyLog.getExam() == null && log.getExam() != null) {
+                legacyLog.setExam(log.getExam());
+            }
+            legacyLog.setHoursStudied(log.getHoursStudied());
+            legacyLog.setTopicsCompleted(log.getTopicsCompleted());
+            studyLogRepository.save(legacyLog);
+        }
     }
 
     /** Recalculate and update streak */

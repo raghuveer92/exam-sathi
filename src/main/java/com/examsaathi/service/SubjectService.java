@@ -3,20 +3,19 @@ package com.examsaathi.service;
 import com.examsaathi.dto.request.SubjectRequest;
 import com.examsaathi.dto.request.CloneSubjectRequest;
 import com.examsaathi.dto.response.SubjectResponse;
-import com.examsaathi.entity.Chapter;
 import com.examsaathi.entity.Exam;
+import com.examsaathi.entity.ExamSubject;
 import com.examsaathi.entity.Subject;
-import com.examsaathi.entity.Topic;
 import com.examsaathi.exception.ResourceNotFoundException;
-import com.examsaathi.repository.ChapterRepository;
 import com.examsaathi.repository.ExamRepository;
+import com.examsaathi.repository.ExamSubjectRepository;
 import com.examsaathi.repository.SubjectRepository;
-import com.examsaathi.repository.TopicRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.stream.Collectors;
 
 @Service
@@ -25,14 +24,13 @@ public class SubjectService {
 
     private final SubjectRepository subjectRepository;
     private final ExamRepository examRepository;
-    private final ChapterRepository chapterRepository;
-    private final TopicRepository topicRepository;
+    private final ExamSubjectRepository examSubjectRepository;
     private final UserMapper mapper;
 
     @Transactional(readOnly = true)
     public List<SubjectResponse> getSubjectsByExam(Long examId) {
-        return subjectRepository.findByExamIdAndIsActiveTrueOrderByDisplayOrderAsc(examId)
-            .stream().map(s -> mapper.toSubjectResponse(s, false)).collect(Collectors.toList());
+        return examSubjectRepository.findByExamIdAndIsActiveTrueOrderByDisplayOrderAsc(examId)
+            .stream().map(es -> mapper.toSubjectResponse(es, false)).collect(Collectors.toList());
     }
 
     @Transactional(readOnly = true)
@@ -47,17 +45,37 @@ public class SubjectService {
         Exam exam = examRepository.findById(request.getExamId())
             .orElseThrow(() -> new ResourceNotFoundException("Exam", request.getExamId()));
 
-        Subject subject = Subject.builder()
-            .exam(exam)
-            .name(request.getName())
-            .description(request.getDescription())
-            .iconName(request.getIconName())
-            .colorCode(request.getColorCode())
-            .displayOrder(request.getDisplayOrder())
-            .isActive(request.getIsActive())
-            .build();
+        Subject subject = subjectRepository.findByNormalizedName(normalize(request.getName()))
+            .map(existing -> {
+                existing.setDescription(request.getDescription());
+                existing.setIconName(request.getIconName());
+                existing.setColorCode(request.getColorCode());
+                if (request.getIsActive() != null) {
+                    existing.setIsActive(request.getIsActive());
+                }
+                return existing;
+            })
+            .orElseGet(() -> Subject.builder()
+                .name(request.getName())
+                .normalizedName(normalize(request.getName()))
+                .description(request.getDescription())
+                .iconName(request.getIconName())
+                .colorCode(request.getColorCode())
+                .isActive(request.getIsActive())
+                .build());
 
-        return mapper.toSubjectResponse(subjectRepository.save(subject), false);
+        Subject savedSubject = subjectRepository.save(subject);
+        ExamSubject examSubject = examSubjectRepository.findByExamIdAndSubjectId(exam.getId(), savedSubject.getId())
+            .orElseGet(() -> ExamSubject.builder()
+                .exam(exam)
+                .subject(savedSubject)
+                .build());
+        examSubject.setDisplayOrder(request.getDisplayOrder() != null ? request.getDisplayOrder() : 0);
+        if (request.getIsActive() != null) {
+            examSubject.setIsActive(request.getIsActive());
+        }
+
+        return mapper.toSubjectResponse(examSubjectRepository.save(examSubject), false);
     }
 
     @Transactional
@@ -66,13 +84,25 @@ public class SubjectService {
             .orElseThrow(() -> new ResourceNotFoundException("Subject", id));
 
         subject.setName(request.getName());
+        subject.setNormalizedName(normalize(request.getName()));
         subject.setDescription(request.getDescription());
         subject.setIconName(request.getIconName());
         subject.setColorCode(request.getColorCode());
-        subject.setDisplayOrder(request.getDisplayOrder());
         if (request.getIsActive() != null) subject.setIsActive(request.getIsActive());
 
-        return mapper.toSubjectResponse(subjectRepository.save(subject), false);
+        ExamSubject examSubject = examSubjectRepository.findByExamIdAndSubjectId(request.getExamId(), id)
+            .orElseGet(() -> ExamSubject.builder()
+                .exam(examRepository.findById(request.getExamId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Exam", request.getExamId())))
+                .subject(subject)
+                .build());
+        examSubject.setDisplayOrder(request.getDisplayOrder() != null ? request.getDisplayOrder() : 0);
+        if (request.getIsActive() != null) {
+            examSubject.setIsActive(request.getIsActive());
+        }
+
+        subjectRepository.save(subject);
+        return mapper.toSubjectResponse(examSubjectRepository.save(examSubject), false);
     }
 
     @Transactional
@@ -90,50 +120,18 @@ public class SubjectService {
         Exam targetExam = examRepository.findById(request.getTargetExamId())
             .orElseThrow(() -> new ResourceNotFoundException("Exam", request.getTargetExamId()));
 
-        Subject clonedSubject = Subject.builder()
-            .exam(targetExam)
-            .name(sourceSubject.getName())
-            .description(sourceSubject.getDescription())
-            .iconName(sourceSubject.getIconName())
-            .colorCode(sourceSubject.getColorCode())
-            .displayOrder(request.getDisplayOrder() != null
-                ? request.getDisplayOrder()
-                : sourceSubject.getDisplayOrder())
-            .isActive(request.getIsActive() != null
-                ? request.getIsActive()
-                : sourceSubject.getIsActive())
-            .build();
-        clonedSubject = subjectRepository.save(clonedSubject);
+        ExamSubject examSubject = examSubjectRepository.findByExamIdAndSubjectId(targetExam.getId(), sourceSubject.getId())
+            .orElseGet(() -> ExamSubject.builder()
+                .exam(targetExam)
+                .subject(sourceSubject)
+                .build());
+        examSubject.setDisplayOrder(request.getDisplayOrder() != null ? request.getDisplayOrder() : 0);
+        examSubject.setIsActive(request.getIsActive() != null ? request.getIsActive() : sourceSubject.getIsActive());
 
-        List<Chapter> sourceChapters = chapterRepository
-            .findBySubjectIdOrderByOrderIndexAsc(sourceSubjectId);
+        return mapper.toSubjectResponse(examSubjectRepository.save(examSubject), false);
+    }
 
-        for (Chapter sourceChapter : sourceChapters) {
-            Chapter clonedChapter = Chapter.builder()
-                .subject(clonedSubject)
-                .title(sourceChapter.getTitle())
-                .description(sourceChapter.getDescription())
-                .orderIndex(sourceChapter.getOrderIndex())
-                .isActive(sourceChapter.getIsActive())
-                .build();
-            clonedChapter = chapterRepository.save(clonedChapter);
-
-            List<Topic> sourceTopics = topicRepository
-                .findByChapterIdOrderByOrderIndexAsc(sourceChapter.getId());
-            for (Topic sourceTopic : sourceTopics) {
-                Topic clonedTopic = Topic.builder()
-                    .chapter(clonedChapter)
-                    .title(sourceTopic.getTitle())
-                    .description(sourceTopic.getDescription())
-                    .estimatedHours(sourceTopic.getEstimatedHours())
-                    .difficultyLevel(sourceTopic.getDifficultyLevel())
-                    .orderIndex(sourceTopic.getOrderIndex())
-                    .isActive(sourceTopic.getIsActive())
-                    .build();
-                topicRepository.save(clonedTopic);
-            }
-        }
-
-        return mapper.toSubjectResponse(clonedSubject, false);
+    private String normalize(String value) {
+        return value == null ? null : value.trim().replaceAll("\\s+", " ").toLowerCase(Locale.ROOT);
     }
 }
