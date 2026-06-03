@@ -12,4 +12,6 @@ public class CloneSubjectRequest {
     private Integer displayOrder;
 
     private Boolean isActive;
+
+    private Long groupId;
 }

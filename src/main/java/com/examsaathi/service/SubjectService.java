@@ -25,12 +25,14 @@ public class SubjectService {
     private final SubjectRepository subjectRepository;
     private final ExamRepository examRepository;
     private final ExamSubjectRepository examSubjectRepository;
+    private final ExamSubjectGroupService examSubjectGroupService;
     private final UserMapper mapper;
 
     @Transactional(readOnly = true)
     public List<SubjectResponse> getSubjectsByExam(Long examId) {
-        return examSubjectRepository.findByExamIdAndIsActiveTrueOrderByDisplayOrderAsc(examId)
-            .stream().map(es -> mapper.toSubjectResponse(es, false)).collect(Collectors.toList());
+        return examSubjectGroupService.getAllGroupedSubjects(examId).stream()
+            .map(resolved -> examSubjectGroupService.toSubjectResponse(resolved, false))
+            .collect(Collectors.toList());
     }
 
     @Transactional(readOnly = true)
@@ -75,7 +77,14 @@ public class SubjectService {
             examSubject.setIsActive(request.getIsActive());
         }
 
-        return mapper.toSubjectResponse(examSubjectRepository.save(examSubject), false);
+        ExamSubject savedExamSubject = examSubjectRepository.save(examSubject);
+        examSubjectGroupService.assignSubjectToGroup(exam.getId(), savedSubject.getId(), request.getGroupId());
+
+        return examSubjectGroupService.getAllGroupedSubjects(exam.getId()).stream()
+            .filter(resolved -> resolved.examSubject().getId().equals(savedExamSubject.getId()))
+            .findFirst()
+            .map(resolved -> examSubjectGroupService.toSubjectResponse(resolved, false))
+            .orElseGet(() -> mapper.toSubjectResponse(savedExamSubject, false));
     }
 
     @Transactional
@@ -102,7 +111,13 @@ public class SubjectService {
         }
 
         subjectRepository.save(subject);
-        return mapper.toSubjectResponse(examSubjectRepository.save(examSubject), false);
+        ExamSubject savedExamSubject = examSubjectRepository.save(examSubject);
+        examSubjectGroupService.assignSubjectToGroup(request.getExamId(), subject.getId(), request.getGroupId());
+        return examSubjectGroupService.getAllGroupedSubjects(request.getExamId()).stream()
+            .filter(resolved -> resolved.examSubject().getId().equals(savedExamSubject.getId()))
+            .findFirst()
+            .map(resolved -> examSubjectGroupService.toSubjectResponse(resolved, false))
+            .orElseGet(() -> mapper.toSubjectResponse(savedExamSubject, false));
     }
 
     @Transactional
@@ -113,6 +128,7 @@ public class SubjectService {
         ExamSubject examSubject = examSubjectRepository.findByExamIdAndSubjectId(examId, id)
             .orElseThrow(() -> new ResourceNotFoundException("Subject for exam", id));
 
+        examSubjectGroupService.removeSubjectAssignments(examId, id);
         examSubjectRepository.delete(examSubject);
 
         if (examSubjectRepository.countBySubjectId(subject.getId()) == 0) {
@@ -135,7 +151,13 @@ public class SubjectService {
         examSubject.setDisplayOrder(request.getDisplayOrder() != null ? request.getDisplayOrder() : 0);
         examSubject.setIsActive(request.getIsActive() != null ? request.getIsActive() : sourceSubject.getIsActive());
 
-        return mapper.toSubjectResponse(examSubjectRepository.save(examSubject), false);
+        ExamSubject savedExamSubject = examSubjectRepository.save(examSubject);
+        examSubjectGroupService.assignSubjectToGroup(targetExam.getId(), sourceSubject.getId(), request.getGroupId());
+        return examSubjectGroupService.getAllGroupedSubjects(targetExam.getId()).stream()
+            .filter(resolved -> resolved.examSubject().getId().equals(savedExamSubject.getId()))
+            .findFirst()
+            .map(resolved -> examSubjectGroupService.toSubjectResponse(resolved, false))
+            .orElseGet(() -> mapper.toSubjectResponse(savedExamSubject, false));
     }
 
     private String normalize(String value) {

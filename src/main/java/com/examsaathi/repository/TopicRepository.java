@@ -27,6 +27,9 @@ public interface TopicRepository extends JpaRepository<Topic, Long> {
            "WHERE es.exam.id = :examId AND es.isActive = true AND s.isActive = true AND t.isActive = true")
     List<Topic> findByExamId(@Param("examId") Long examId);
 
+    @Query("SELECT DISTINCT t FROM Topic t WHERE t.chapter.subject.id IN :subjectIds AND t.isActive = true")
+    List<Topic> findBySubjectIdIn(@Param("subjectIds") List<Long> subjectIds);
+
     /** Sum estimated hours for a subject */
     @Query("SELECT COALESCE(SUM(t.estimatedHours), 0) FROM Topic t " +
            "WHERE t.chapter.subject.id = :subjectId AND t.isActive = true")
@@ -39,4 +42,7 @@ public interface TopicRepository extends JpaRepository<Topic, Long> {
            "JOIN c.topics t " +
            "WHERE es.exam.id = :examId AND es.isActive = true AND s.isActive = true AND t.isActive = true")
     Double sumEstimatedHoursByExamId(@Param("examId") Long examId);
+
+       @Query("SELECT COALESCE(SUM(t.estimatedHours), 0) FROM Topic t WHERE t.chapter.subject.id IN :subjectIds AND t.isActive = true")
+       Double sumEstimatedHoursBySubjectIds(@Param("subjectIds") List<Long> subjectIds);
 }

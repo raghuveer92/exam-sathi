@@ -106,14 +106,18 @@ public class UserMapper {
     }
 
     public SubjectResponse toSubjectResponse(Subject subject, boolean includeChapters) {
-        return toSubjectResponse(subject, null, includeChapters);
+        return toSubjectResponse(subject, null, null, includeChapters, false);
     }
 
     public SubjectResponse toSubjectResponse(ExamSubject examSubject, boolean includeChapters) {
-        return toSubjectResponse(examSubject.getSubject(), examSubject, includeChapters);
+        return toSubjectResponse(examSubject.getSubject(), examSubject, null, includeChapters, false);
     }
 
-    private SubjectResponse toSubjectResponse(Subject subject, ExamSubject examSubject, boolean includeChapters) {
+    public SubjectResponse toSubjectResponse(ExamSubject examSubject, ExamSubjectGroup group, boolean includeChapters, boolean selected) {
+        return toSubjectResponse(examSubject.getSubject(), examSubject, group, includeChapters, selected);
+    }
+
+    private SubjectResponse toSubjectResponse(Subject subject, ExamSubject examSubject, ExamSubjectGroup group, boolean includeChapters, boolean selected) {
         return SubjectResponse.builder()
             .id(subject.getId())
             .examId(examSubject != null ? examSubject.getExam().getId() : null)
@@ -124,6 +128,12 @@ public class UserMapper {
             .colorCode(subject.getColorCode())
             .displayOrder(examSubject != null ? examSubject.getDisplayOrder() : 0)
             .isActive(subject.getIsActive())
+            .groupId(group != null ? group.getId() : null)
+            .groupName(group != null ? group.getGroupName() : null)
+            .groupOptional(group != null ? group.getIsOptional() : null)
+            .minSelection(group != null ? group.getMinSelection() : null)
+            .maxSelection(group != null ? group.getMaxSelection() : null)
+            .selected(selected)
             .topicCount(subject.getChapters().stream()
                 .mapToInt(c -> c.getTopics().size()).sum())
             .chapters(includeChapters

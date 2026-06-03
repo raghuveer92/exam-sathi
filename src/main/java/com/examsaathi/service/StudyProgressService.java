@@ -36,7 +36,7 @@ public class StudyProgressService {
     private final ChapterRepository chapterRepository;
     private final UserRepository userRepository;
     private final UserExamRepository userExamRepository;
-    private final ExamSubjectRepository examSubjectRepository;
+    private final ExamSubjectGroupService examSubjectGroupService;
     private final UserMapper mapper;
 
     /** Mark a topic complete or update study hours */
@@ -45,7 +45,7 @@ public class StudyProgressService {
         Topic topic = topicRepository.findById(request.getTopicId())
             .orElseThrow(() -> new ResourceNotFoundException("Topic", request.getTopicId()));
         UserExam activeUserExam = getActiveUserExam(userId);
-        ensureTopicBelongsToExam(activeUserExam.getExam().getId(), topic.getChapter().getSubject().getId());
+        ensureTopicBelongsToExam(activeUserExam, topic.getChapter().getSubject().getId());
 
         StudyProgress progress = progressRepository
             .findByUserExamIdAndTopicId(activeUserExam.getId(), request.getTopicId())
@@ -120,6 +120,8 @@ public class StudyProgressService {
     /** Get full subject detail with chapters, topics and per-user progress */
     @Transactional(readOnly = true)
     public SubjectDetailResponse getSubjectDetail(Long userId, Long subjectId) {
+        UserExam activeUserExam = getActiveUserExam(userId);
+        ensureTopicBelongsToExam(activeUserExam, subjectId);
         Subject subject = subjectRepository.findById(subjectId)
             .orElseThrow(() -> new ResourceNotFoundException("Subject", subjectId));
 
@@ -132,7 +134,7 @@ public class StudyProgressService {
 
         Map<Long, StudyProgress> progressMap = allTopicIds.isEmpty()
             ? Collections.emptyMap()
-            : progressRepository.findByUserExamIdAndTopicIdIn(getActiveUserExam(userId).getId(), allTopicIds)
+            : progressRepository.findByUserExamIdAndTopicIdIn(activeUserExam.getId(), allTopicIds)
                 .stream().collect(Collectors.toMap(sp -> sp.getTopic().getId(), sp -> sp));
 
         int totalTopics = 0;
@@ -218,13 +220,16 @@ public class StudyProgressService {
 
     /** Get subject-wise progress for a student */
     public List<SubjectProgressResponse> getSubjectProgress(Long userId, Long examId) {
-        return examSubjectRepository.findByExamIdAndIsActiveTrueOrderByDisplayOrderAsc(examId)
+        UserExam userExam = userExamRepository.findByUserIdAndExamId(userId, examId)
+            .orElseThrow(() -> new IllegalStateException("Exam is not linked to this user"));
+        return examSubjectGroupService.resolveVisibleSubjects(userExam)
             .stream()
             .map(es -> buildSubjectProgress(userId, examId, es))
             .collect(Collectors.toList());
     }
 
-    private SubjectProgressResponse buildSubjectProgress(Long userId, Long examId, ExamSubject examSubject) {
+    private SubjectProgressResponse buildSubjectProgress(Long userId, Long examId, ExamSubjectGroupService.ResolvedExamSubject resolvedSubject) {
+        ExamSubject examSubject = resolvedSubject.examSubject();
         Subject subject = examSubject.getSubject();
         int totalTopics = topicRepository.countBySubjectId(subject.getId());
         int completed = progressRepository.countCompletedByUserAndExamAndSubject(userId, examId, subject.getId());
@@ -246,15 +251,16 @@ public class StudyProgressService {
             .build();
     }
 
-            private UserExam getActiveUserExam(Long userId) {
-            return userExamRepository.findByUserIdAndIsActiveTrue(userId)
-                .orElseThrow(() -> new IllegalStateException("No active exam selected"));
-            }
+    private UserExam getActiveUserExam(Long userId) {
+        return userExamRepository.findByUserIdAndIsActiveTrue(userId)
+            .orElseThrow(() -> new IllegalStateException("No active exam selected"));
+    }
 
-            private void ensureTopicBelongsToExam(Long examId, Long subjectId) {
-            examSubjectRepository.findByExamIdAndSubjectId(examId, subjectId)
-                .orElseThrow(() -> new IllegalStateException("Topic does not belong to the active exam"));
-            }
+    private void ensureTopicBelongsToExam(UserExam userExam, Long subjectId) {
+        if (!examSubjectGroupService.isSubjectVisible(userExam, subjectId)) {
+            throw new IllegalStateException("Topic does not belong to the active exam");
+        }
+    }
 
     /** Update today's daily log topic count */
     private void updateDailyLogTopicCount(Long userId, LocalDate date, Long examId) {

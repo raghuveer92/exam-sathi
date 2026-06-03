@@ -31,6 +31,11 @@ public interface StudyProgressRepository extends JpaRepository<StudyProgress, Lo
     int countCompletedByUserAndExam(@Param("userId") Long userId,
                                     @Param("examId") Long examId);
 
+    @Query("SELECT COUNT(sp) FROM StudyProgress sp WHERE sp.userExam.id = :userExamId " +
+           "AND sp.topic.chapter.subject.id IN :subjectIds AND sp.isCompleted = true")
+    int countCompletedByUserExamIdAndSubjectIds(@Param("userExamId") Long userExamId,
+                                                @Param("subjectIds") List<Long> subjectIds);
+
     /** Topics completed by user today */
     @Query("SELECT COUNT(sp) FROM StudyProgress sp WHERE sp.user.id = :userId " +
            "AND sp.isCompleted = true AND sp.completedAt >= :since")
@@ -42,6 +47,13 @@ public interface StudyProgressRepository extends JpaRepository<StudyProgress, Lo
     int countCompletedByUserAndExamSince(@Param("userId") Long userId,
                                          @Param("examId") Long examId,
                                          @Param("since") LocalDateTime since);
+
+    @Query("SELECT COUNT(sp) FROM StudyProgress sp WHERE sp.userExam.id = :userExamId " +
+           "AND sp.topic.chapter.subject.id IN :subjectIds " +
+           "AND sp.isCompleted = true AND sp.completedAt >= :since")
+    int countCompletedByUserExamIdAndSubjectIdsSince(@Param("userExamId") Long userExamId,
+                                                     @Param("subjectIds") List<Long> subjectIds,
+                                                     @Param("since") LocalDateTime since);
 
     /** All completed progress for a user in an exam (for analytics) */
     @Query("SELECT sp FROM StudyProgress sp WHERE sp.user.id = :userId " +

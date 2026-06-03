@@ -31,4 +31,6 @@ public class SubjectRequest {
     private Integer displayOrder = 0;
 
     private Boolean isActive = true;
+
+    private Long groupId;
 }

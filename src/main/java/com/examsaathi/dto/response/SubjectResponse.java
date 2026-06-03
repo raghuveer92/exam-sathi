@@ -18,6 +18,12 @@ public class SubjectResponse {
     private String colorCode;
     private Integer displayOrder;
     private Boolean isActive;
+    private Long groupId;
+    private String groupName;
+    private Boolean groupOptional;
+    private Integer minSelection;
+    private Integer maxSelection;
+    private Boolean selected;
     private int topicCount;
     private Double totalEstimatedHours;
     private LocalDateTime createdAt;

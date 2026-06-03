@@ -23,11 +23,11 @@ import java.util.stream.Collectors;
 public class DashboardService {
 
     private final UserRepository userRepository;
-    private final SubjectRepository subjectRepository;
-    private final ExamSubjectRepository examSubjectRepository;
     private final TopicRepository topicRepository;
     private final StudyProgressRepository progressRepository;
     private final DailyStudyLogRepository studyLogRepository;
+    private final UserExamRepository userExamRepository;
+    private final ExamSubjectGroupService examSubjectGroupService;
     private final UserMapper mapper;
 
     public DashboardResponse getDashboard(Long userId) {
@@ -41,12 +41,17 @@ public class DashboardService {
             return buildEmptyDashboard(user, examCards, overallSummary);
         }
 
-        Long examId = user.getSelectedExam().getId();
-        List<ExamSubject> examSubjects = examSubjectRepository.findByExamIdAndIsActiveTrueOrderByDisplayOrderAsc(examId);
+        UserExam activeUserExam = userExamRepository.findByUserIdAndIsActiveTrue(userId)
+            .orElseThrow(() -> new RuntimeException("Active user exam not found"));
+        Long examId = activeUserExam.getExam().getId();
+        List<Long> visibleSubjectIds = examSubjectGroupService.getVisibleSubjectIds(activeUserExam);
+        List<ExamSubjectGroupService.ResolvedExamSubject> examSubjects = examSubjectGroupService.resolveVisibleSubjects(activeUserExam);
 
         // Today's stats
         LocalDateTime todayStart = LocalDate.now().atStartOfDay();
-        int todayCompleted = progressRepository.countCompletedByUserAndExamSince(userId, examId, todayStart);
+        int todayCompleted = visibleSubjectIds.isEmpty()
+            ? 0
+            : progressRepository.countCompletedByUserExamIdAndSubjectIdsSince(activeUserExam.getId(), visibleSubjectIds, todayStart);
         double todayHours = studyLogRepository.findByUserIdAndExamIdAndStudyDate(userId, examId, LocalDate.now())
             .map(DailyStudyLog::getHoursStudied).orElse(0.0);
 
@@ -81,7 +86,8 @@ public class DashboardService {
             .build();
     }
 
-    private SubjectProgressResponse buildSubjectProgress(Long userId, Long examId, ExamSubject examSubject) {
+    private SubjectProgressResponse buildSubjectProgress(Long userId, Long examId, ExamSubjectGroupService.ResolvedExamSubject resolvedSubject) {
+        ExamSubject examSubject = resolvedSubject.examSubject();
         Subject subject = examSubject.getSubject();
         int totalTopics = topicRepository.countBySubjectId(subject.getId());
         int completed = progressRepository.countCompletedByUserAndExamAndSubject(userId, examId, subject.getId());
@@ -126,9 +132,12 @@ public class DashboardService {
         int completedTopics = 0;
 
         for (UserExam userExam : user.getUserExams()) {
-            Long examId = userExam.getExam().getId();
-            totalTopics += topicRepository.findByExamId(examId).size();
-            completedTopics += progressRepository.countCompletedByUserAndExam(userId, examId);
+            List<Long> visibleSubjectIds = examSubjectGroupService.getVisibleSubjectIds(userExam);
+            if (visibleSubjectIds.isEmpty()) {
+                continue;
+            }
+            totalTopics += topicRepository.findBySubjectIdIn(visibleSubjectIds).size();
+            completedTopics += progressRepository.countCompletedByUserExamIdAndSubjectIds(userExam.getId(), visibleSubjectIds);
         }
 
         double overallPercent = totalTopics > 0
@@ -152,10 +161,13 @@ public class DashboardService {
                 .thenComparing(UserExam::getCreatedAt, Comparator.nullsLast(Comparator.naturalOrder())))
             .map(ue -> {
                 Long examId = ue.getExam().getId();
-                int totalSubjects = examSubjectRepository.countByExamIdAndIsActiveTrue(examId);
-                List<Topic> examTopics = topicRepository.findByExamId(examId);
+                List<Long> visibleSubjectIds = examSubjectGroupService.getVisibleSubjectIds(ue);
+                int totalSubjects = visibleSubjectIds.size();
+                List<Topic> examTopics = visibleSubjectIds.isEmpty() ? new ArrayList<>() : topicRepository.findBySubjectIdIn(visibleSubjectIds);
                 int totalTopics = examTopics.size();
-                int completedTopics = progressRepository.countCompletedByUserAndExam(userId, examId);
+                int completedTopics = visibleSubjectIds.isEmpty()
+                    ? 0
+                    : progressRepository.countCompletedByUserExamIdAndSubjectIds(ue.getId(), visibleSubjectIds);
                 double progressPercent = totalTopics > 0
                     ? Math.round((completedTopics * 100.0 / totalTopics) * 10.0) / 10.0
                     : 0.0;
@@ -174,6 +186,7 @@ public class DashboardService {
                     .totalSubjects(totalSubjects)
                     .progressPercent(progressPercent)
                     .isActive(ue.getIsActive())
+                        .subjectGroups(examSubjectGroupService.getGroupsByUserExam(ue.getId()))
                     .createdAt(ue.getCreatedAt())
                     .build();
             })

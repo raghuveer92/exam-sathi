@@ -1,11 +1,13 @@
 package com.examsaathi.controller;
 
 import com.examsaathi.dto.request.ExamGoalRequest;
+import com.examsaathi.dto.request.SubjectGroupSelectionRequest;
 import com.examsaathi.dto.request.UpdateStudyHoursRequest;
 import com.examsaathi.dto.request.UserExamCreateRequest;
 import com.examsaathi.dto.request.UserExamDateUpdateRequest;
 import com.examsaathi.dto.response.ApiResponse;
 import com.examsaathi.dto.response.DashboardResponse;
+import com.examsaathi.dto.response.ExamSubjectGroupResponse;
 import com.examsaathi.dto.response.UserResponse;
 import com.examsaathi.dto.response.UserExamResponse;
 import com.examsaathi.entity.Exam;
@@ -13,13 +15,12 @@ import com.examsaathi.entity.User;
 import com.examsaathi.entity.UserExam;
 import com.examsaathi.exception.BadRequestException;
 import com.examsaathi.repository.ExamRepository;
-import com.examsaathi.repository.ExamSubjectRepository;
-import com.examsaathi.repository.SubjectRepository;
 import com.examsaathi.repository.StudyProgressRepository;
 import com.examsaathi.repository.TopicRepository;
 import com.examsaathi.repository.UserExamRepository;
 import com.examsaathi.repository.UserRepository;
 import com.examsaathi.service.DashboardService;
+import com.examsaathi.service.ExamSubjectGroupService;
 import com.examsaathi.service.UserMapper;
 import jakarta.validation.Valid;
 import jakarta.transaction.Transactional;
@@ -51,9 +52,8 @@ public class StudentController {
     private final DashboardService dashboardService;
     private final UserMapper userMapper;
     private final TopicRepository topicRepository;
-    private final SubjectRepository subjectRepository;
-    private final ExamSubjectRepository examSubjectRepository;
     private final StudyProgressRepository studyProgressRepository;
+    private final ExamSubjectGroupService examSubjectGroupService;
 
     @GetMapping("/me")
     @Transactional
@@ -80,6 +80,9 @@ public class StudentController {
             @PathVariable Long examId) {
         User user = userRepository.findByEmailWithExam(userDetails.getUsername()).orElseThrow();
         UserExam userExam = upsertUserExam(user, examId, null);
+        if (examSubjectGroupService.hasRequiredOptionalGroups(examId) && !examSubjectGroupService.hasValidSelections(userExam)) {
+            throw new BadRequestException("Subject selections are required for this exam");
+        }
         setActiveExam(user, userExam);
         userRepository.save(user);
         return ResponseEntity.ok(ApiResponse.success("Exam selected", userMapper.toResponse(user)));
@@ -106,9 +109,39 @@ public class StudentController {
             @Valid @RequestBody UserExamCreateRequest request) {
         User user = userRepository.findByEmailWithExam(userDetails.getUsername()).orElseThrow();
         UserExam userExam = upsertUserExam(user, request.getExamId(), request.getExamDate());
+        examSubjectGroupService.saveSelections(userExam, request.getSubjectSelections());
         setActiveExam(user, userExam);
         userRepository.save(user);
         return ResponseEntity.ok(ApiResponse.success("Exam added", userMapper.toResponse(user)));
+    }
+
+    @GetMapping("/exams/{examId}/subject-groups")
+    @Transactional
+    @Operation(summary = "Get subject groups for an exam, including current user selections if available")
+    public ResponseEntity<ApiResponse<List<ExamSubjectGroupResponse>>> getExamSubjectGroups(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable Long examId) {
+        User user = userRepository.findByEmailWithExam(userDetails.getUsername()).orElseThrow();
+        return ResponseEntity.ok(ApiResponse.success(
+            userExamRepository.findByUserIdAndExamId(user.getId(), examId)
+                .map(userExam -> examSubjectGroupService.getGroupsByUserExam(userExam.getId()))
+                .orElseGet(() -> examSubjectGroupService.getGroupsByExam(examId))
+        ));
+    }
+
+    @PutMapping("/my-exams/{userExamId}/subject-selections")
+    @Transactional
+    @Operation(summary = "Update optional subject selections for a user exam")
+    public ResponseEntity<ApiResponse<UserResponse>> updateSubjectSelections(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable Long userExamId,
+            @RequestBody List<SubjectGroupSelectionRequest> request) {
+        User user = userRepository.findByEmailWithExam(userDetails.getUsername()).orElseThrow();
+        UserExam userExam = userExamRepository.findById(userExamId)
+            .filter(ue -> ue.getUser().getId().equals(user.getId()))
+            .orElseThrow(() -> new BadRequestException("Exam mapping not found"));
+        examSubjectGroupService.saveSelections(userExam, request);
+        return ResponseEntity.ok(ApiResponse.success("Subject selections updated", userMapper.toResponse(user)));
     }
 
     @PatchMapping("/my-exams/{userExamId}/date")
@@ -144,6 +177,11 @@ public class StudentController {
         UserExam userExam = userExamRepository.findById(userExamId)
             .filter(ue -> ue.getUser().getId().equals(user.getId()))
             .orElseThrow(() -> new BadRequestException("Exam mapping not found"));
+
+        if (examSubjectGroupService.hasRequiredOptionalGroups(userExam.getExam().getId())
+            && !examSubjectGroupService.hasValidSelections(userExam)) {
+            throw new BadRequestException("Subject selections are required for this exam");
+        }
 
         setActiveExam(user, userExam);
         userRepository.save(user);
@@ -214,7 +252,8 @@ public class StudentController {
         userExam.setSyllabusTargetDate(syllabusDate);
 
         if (userExam.getExam() != null) {
-            Double totalHours = topicRepository.sumEstimatedHoursByExamId(userExam.getExam().getId());
+            List<Long> visibleSubjectIds = examSubjectGroupService.getVisibleSubjectIds(userExam);
+            Double totalHours = visibleSubjectIds.isEmpty() ? 0.0 : topicRepository.sumEstimatedHoursBySubjectIds(visibleSubjectIds);
             long daysRemaining = ChronoUnit.DAYS.between(LocalDate.now(), request.getExamDate());
             if (totalHours != null && totalHours > 0 && daysRemaining > 0) {
                 double daily = Math.round((totalHours / daysRemaining) * 10.0) / 10.0;
@@ -296,9 +335,10 @@ public class StudentController {
             daysLeft = (int) ChronoUnit.DAYS.between(LocalDate.now(), ue.getExamDate());
         }
         Long examId = ue.getExam().getId();
-        int totalSubjects = examSubjectRepository.countByExamIdAndIsActiveTrue(examId);
-        int totalTopics = topicRepository.findByExamId(examId).size();
-        int completedTopics = studyProgressRepository.countCompletedByUserAndExam(userId, examId);
+        List<Long> visibleSubjectIds = examSubjectGroupService.getVisibleSubjectIds(ue);
+        int totalSubjects = visibleSubjectIds.size();
+        int totalTopics = visibleSubjectIds.isEmpty() ? 0 : topicRepository.findBySubjectIdIn(visibleSubjectIds).size();
+        int completedTopics = visibleSubjectIds.isEmpty() ? 0 : studyProgressRepository.countCompletedByUserExamIdAndSubjectIds(ue.getId(), visibleSubjectIds);
         Double progress = totalTopics > 0 ? (completedTopics * 100.0 / totalTopics) : 0.0;
         return UserExamResponse.builder()
             .id(ue.getId())
@@ -309,6 +349,7 @@ public class StudentController {
             .totalSubjects(totalSubjects)
             .progressPercent(progress)
             .isActive(ue.getIsActive())
+            .subjectGroups(examSubjectGroupService.getGroupsByUserExam(ue.getId()))
             .createdAt(ue.getCreatedAt())
             .build();
     }
