@@ -46,6 +46,9 @@ public class UserExam {
     @Column(name = "weekly_target_hours")
     private Double weeklyTargetHours;
 
+    @Column(name = "experience_level", length = 30)
+    private String experienceLevel;
+
     @Column(name = "is_active", nullable = false)
     @Builder.Default
     private Boolean isActive = false;

@@ -33,6 +33,35 @@ public class Exam {
     @Column(length = 500)
     private String description;
 
+    @Column(name = "short_description", length = 200)
+    private String shortDescription;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "category_id")
+    private ExamCategory category;
+
+    @Column(name = "banner_url", length = 500)
+    private String bannerUrl;
+
+    @Column(name = "difficulty_level", length = 30)
+    private String difficultyLevel;
+
+    @Column(nullable = false)
+    @Builder.Default
+    private Boolean featured = false;
+
+    @Column(nullable = false)
+    @Builder.Default
+    private Boolean popular = false;
+
+    @Column(name = "display_order", nullable = false)
+    @Builder.Default
+    private Integer displayOrder = 0;
+
+    @Column(name = "featured_order", nullable = false)
+    @Builder.Default
+    private Integer featuredOrder = 0;
+
     /** Short display code e.g. CBSE10, NEET, JEE_MAIN */
     @Column(length = 30)
     private String code;

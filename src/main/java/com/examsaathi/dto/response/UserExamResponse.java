@@ -14,6 +14,8 @@ public class UserExamResponse {
     private Long examId;
     private String examName;
     private LocalDate examDate;
+    private Double dailyTargetHours;
+    private String experienceLevel;
     private Integer daysLeft;
     private Integer totalSubjects;
     private Double progressPercent;

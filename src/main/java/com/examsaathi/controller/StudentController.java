@@ -1,5 +1,6 @@
 package com.examsaathi.controller;
 
+import com.examsaathi.dto.request.EnrollExamRequest;
 import com.examsaathi.dto.request.ExamGoalRequest;
 import com.examsaathi.dto.request.SubjectGroupSelectionRequest;
 import com.examsaathi.dto.request.UpdateStudyHoursRequest;
@@ -79,7 +80,7 @@ public class StudentController {
             @AuthenticationPrincipal UserDetails userDetails,
             @PathVariable Long examId) {
         User user = userRepository.findByEmailWithExam(userDetails.getUsername()).orElseThrow();
-        UserExam userExam = upsertUserExam(user, examId, null);
+        UserExam userExam = upsertUserExam(user, examId, null, null, null);
         if (examSubjectGroupService.hasRequiredOptionalGroups(examId) && !examSubjectGroupService.hasValidSelections(userExam)) {
             throw new BadRequestException("Subject selections are required for this exam");
         }
@@ -108,11 +109,43 @@ public class StudentController {
             @AuthenticationPrincipal UserDetails userDetails,
             @Valid @RequestBody UserExamCreateRequest request) {
         User user = userRepository.findByEmailWithExam(userDetails.getUsername()).orElseThrow();
-        UserExam userExam = upsertUserExam(user, request.getExamId(), request.getExamDate());
+        UserExam userExam = upsertUserExam(user, request.getExamId(), request.getExamDate(),
+            request.getDailyTargetHours(), request.getExperienceLevel());
         examSubjectGroupService.saveSelections(userExam, request.getSubjectSelections());
         setActiveExam(user, userExam);
         userRepository.save(user);
         return ResponseEntity.ok(ApiResponse.success("Exam added", userMapper.toResponse(user)));
+    }
+
+    @PostMapping("/my-exams/enroll")
+    @Transactional
+    @Operation(summary = "Enroll in exam with goal settings (wizard confirm)")
+    public ResponseEntity<ApiResponse<UserResponse>> enrollExam(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @Valid @RequestBody EnrollExamRequest request) {
+        User user = userRepository.findByEmailWithExam(userDetails.getUsername()).orElseThrow();
+        UserExam userExam = upsertUserExam(user, request.getExamId(), request.getExamDate(),
+            request.getDailyTargetHours(), request.getExperienceLevel());
+
+        LocalDate syllabusDate = request.getSyllabusTargetDate() != null
+            ? request.getSyllabusTargetDate()
+            : request.getExamDate().minusDays(30);
+        userExam.setSyllabusTargetDate(syllabusDate);
+
+        if (request.getDailyTargetHours() == null && userExam.getExam() != null) {
+            applyAutoStudyHours(userExam, request.getExamDate());
+        } else if (request.getDailyTargetHours() != null) {
+            double daily = Math.max(0.5, Math.min(16.0, request.getDailyTargetHours()));
+            daily = Math.round(daily * 2.0) / 2.0;
+            userExam.setDailyTargetHours(daily);
+            userExam.setWeeklyTargetHours(Math.round(daily * 7 * 10.0) / 10.0);
+        }
+
+        userExamRepository.save(userExam);
+        examSubjectGroupService.saveSelections(userExam, request.getSubjectSelections());
+        setActiveExam(user, userExam);
+        userRepository.save(user);
+        return ResponseEntity.ok(ApiResponse.success("Study plan created", userMapper.toResponse(user)));
     }
 
     @GetMapping("/exams/{examId}/subject-groups")
@@ -295,7 +328,8 @@ public class StudentController {
         return ResponseEntity.ok(ApiResponse.success("Study hours updated", userMapper.toResponse(user)));
     }
 
-    private UserExam upsertUserExam(User user, Long examId, LocalDate examDate) {
+    private UserExam upsertUserExam(User user, Long examId, LocalDate examDate,
+                                    Double dailyTargetHours, String experienceLevel) {
         Exam exam = examRepository.findById(examId)
             .orElseThrow(() -> new BadRequestException("Invalid exam id: " + examId));
 
@@ -309,7 +343,28 @@ public class StudentController {
         if (examDate != null) {
             userExam.setExamDate(examDate);
         }
+        if (experienceLevel != null && !experienceLevel.isBlank()) {
+            userExam.setExperienceLevel(experienceLevel.trim().toUpperCase());
+        }
+        if (dailyTargetHours != null) {
+            double daily = Math.max(0.5, Math.min(16.0, dailyTargetHours));
+            daily = Math.round(daily * 2.0) / 2.0;
+            userExam.setDailyTargetHours(daily);
+            userExam.setWeeklyTargetHours(Math.round(daily * 7 * 10.0) / 10.0);
+        }
         return userExamRepository.save(userExam);
+    }
+
+    private void applyAutoStudyHours(UserExam userExam, LocalDate examDate) {
+        List<Long> visibleSubjectIds = examSubjectGroupService.getVisibleSubjectIds(userExam);
+        Double totalHours = visibleSubjectIds.isEmpty() ? 0.0
+            : topicRepository.sumEstimatedHoursBySubjectIds(visibleSubjectIds);
+        long daysRemaining = ChronoUnit.DAYS.between(LocalDate.now(), examDate);
+        if (totalHours != null && totalHours > 0 && daysRemaining > 0) {
+            double daily = Math.round((totalHours / daysRemaining) * 10.0) / 10.0;
+            userExam.setDailyTargetHours(daily);
+            userExam.setWeeklyTargetHours(Math.round(daily * 7 * 10.0) / 10.0);
+        }
     }
 
     private void setActiveExam(User user, UserExam activeUserExam) {
@@ -345,6 +400,8 @@ public class StudentController {
             .examId(examId)
             .examName(ue.getExam().getName())
             .examDate(ue.getExamDate())
+            .dailyTargetHours(ue.getDailyTargetHours())
+            .experienceLevel(ue.getExperienceLevel())
             .daysLeft(daysLeft)
             .totalSubjects(totalSubjects)
             .progressPercent(progress)

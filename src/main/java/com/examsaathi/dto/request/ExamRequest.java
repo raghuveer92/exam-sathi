@@ -14,6 +14,22 @@ public class ExamRequest {
     @Size(max = 500)
     private String description;
 
+    @Size(max = 200)
+    private String shortDescription;
+
+    private Long categoryId;
+
+    @Size(max = 500)
+    private String bannerUrl;
+
+    @Size(max = 30)
+    private String difficultyLevel;
+
+    private Boolean featured = false;
+    private Boolean popular = false;
+    private Integer displayOrder = 0;
+    private Integer featuredOrder = 0;
+
     @Size(max = 30)
     private String code;
 

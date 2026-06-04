@@ -8,11 +8,14 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Data
-public class UserExamCreateRequest {
+public class EnrollExamRequest {
     @NotNull
     private Long examId;
 
+    @NotNull
     private LocalDate examDate;
+
+    private LocalDate syllabusTargetDate;
 
     private Double dailyTargetHours;
 
