@@ -45,7 +45,8 @@ public class SecurityConfig {
         "/v3/api-docs/**",
         "/actuator/health",
         "/actuator/info",
-        "/exam-catalog/**"
+        "/exam-catalog/**",
+        "/sync/catalog"
     };
 
     @Bean

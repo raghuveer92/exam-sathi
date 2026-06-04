@@ -110,6 +110,7 @@ public class UserMapper {
             .isActive(exam.getIsActive())
             .subjectCount(activeExamSubjects.size())
             .createdAt(exam.getCreatedAt())
+            .updatedAt(exam.getUpdatedAt())
             .subjects(includeSubjects
                 ? activeExamSubjects.stream().map(es -> toSubjectResponse(es, false)).collect(Collectors.toList())
                 : Collections.emptyList())
@@ -145,6 +146,8 @@ public class UserMapper {
             .minSelection(group != null ? group.getMinSelection() : null)
             .maxSelection(group != null ? group.getMaxSelection() : null)
             .selected(selected)
+            .createdAt(subject.getCreatedAt())
+            .updatedAt(subject.getUpdatedAt())
             .topicCount(subject.getChapters().stream()
                 .mapToInt(c -> c.getTopics().size()).sum())
             .chapters(includeChapters
@@ -163,6 +166,7 @@ public class UserMapper {
             .orderIndex(chapter.getOrderIndex())
             .isActive(chapter.getIsActive())
             .topicCount(chapter.getTopics().size())
+            .updatedAt(chapter.getUpdatedAt())
             .topics(includeTopics
                 ? chapter.getTopics().stream().map(this::toTopicResponse).collect(Collectors.toList())
                 : Collections.emptyList())
@@ -180,6 +184,7 @@ public class UserMapper {
             .difficultyLevel(topic.getDifficultyLevel())
             .orderIndex(topic.getOrderIndex())
             .isActive(topic.getIsActive())
+            .updatedAt(topic.getUpdatedAt())
             .build();
     }
 

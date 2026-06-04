@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Repository
@@ -32,4 +33,6 @@ public interface ExamRepository extends JpaRepository<Exam, Long> {
 
     boolean existsByCode(String code);
     java.util.Optional<Exam> findByNameIgnoreCase(String name);
+
+    List<Exam> findByIsActiveTrueAndUpdatedAtAfterOrderByUpdatedAtAsc(LocalDateTime since);
 }

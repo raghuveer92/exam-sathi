@@ -27,5 +27,6 @@ public class SubjectResponse {
     private int topicCount;
     private Double totalEstimatedHours;
     private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
     private List<ChapterResponse> chapters;
 }

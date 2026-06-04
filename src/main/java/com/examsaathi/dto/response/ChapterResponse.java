@@ -3,6 +3,7 @@ package com.examsaathi.dto.response;
 import lombok.Builder;
 import lombok.Data;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Data
@@ -17,4 +18,5 @@ public class ChapterResponse {
     private Boolean isActive;
     private int topicCount;
     private List<TopicResponse> topics;
+    private LocalDateTime updatedAt;
 }

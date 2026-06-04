@@ -23,4 +23,5 @@ public class TopicResponse {
     private String status;
     private java.time.LocalDateTime completedAt;
     private java.time.LocalDateTime lastStudiedAt;
+    private java.time.LocalDateTime updatedAt;
 }

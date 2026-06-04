@@ -27,5 +27,6 @@ public class ExamResponse {
     private Boolean isActive;
     private int subjectCount;
     private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
     private List<SubjectResponse> subjects;
 }

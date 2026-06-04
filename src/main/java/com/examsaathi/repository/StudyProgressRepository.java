@@ -68,4 +68,16 @@ public interface StudyProgressRepository extends JpaRepository<StudyProgress, Lo
 
     /** Delete all progress records for a topic (used before topic deletion) */
     void deleteByTopicId(Long topicId);
+
+    @Query("""
+        SELECT sp FROM StudyProgress sp
+        JOIN FETCH sp.topic t
+        JOIN FETCH t.chapter c
+        JOIN FETCH c.subject
+        JOIN FETCH sp.userExam ue
+        JOIN FETCH ue.exam
+        WHERE sp.user.id = :userId AND sp.updatedAt > :since
+        """)
+    List<StudyProgress> findByUserIdAndUpdatedAtAfter(@Param("userId") Long userId,
+                                                      @Param("since") LocalDateTime since);
 }

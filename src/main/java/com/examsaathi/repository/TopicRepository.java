@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Repository
@@ -53,4 +54,8 @@ public interface TopicRepository extends JpaRepository<Topic, Long> {
         WHERE t.id = :id
         """)
     java.util.Optional<Topic> findByIdWithChapterAndSubject(@Param("id") Long id);
+
+    List<Topic> findByIsActiveTrueOrderByUpdatedAtAsc();
+
+    List<Topic> findByIsActiveTrueAndUpdatedAtAfterOrderByUpdatedAtAsc(LocalDateTime since);
 }
