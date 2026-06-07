@@ -158,6 +158,8 @@ public class StudyProgressService {
 
                 if (isCompleted) {
                     chapterCompleted++;
+                }
+                if (actualHours > 0) {
                     totalStudyHours += actualHours;
                 }
 
