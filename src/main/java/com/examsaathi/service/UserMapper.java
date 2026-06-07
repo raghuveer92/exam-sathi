@@ -41,6 +41,21 @@ public class UserMapper {
                 .findFirst()
                 .orElse(null);
 
+        Double dailyTargetHours = user.getDailyTargetHours();
+        Double weeklyTargetHours = user.getWeeklyTargetHours();
+        if ((dailyTargetHours == null || dailyTargetHours <= 0) && user.getUserExams() != null) {
+            UserExam activeExam = user.getUserExams().stream()
+                .filter(ue -> activeUserExamId != null
+                    ? ue.getId().equals(activeUserExamId)
+                    : Boolean.TRUE.equals(ue.getIsActive()))
+                .findFirst()
+                .orElse(null);
+            if (activeExam != null && activeExam.getDailyTargetHours() != null) {
+                dailyTargetHours = activeExam.getDailyTargetHours();
+                weeklyTargetHours = activeExam.getWeeklyTargetHours();
+            }
+        }
+
         return UserResponse.builder()
             .id(user.getId())
             .email(user.getEmail())
@@ -52,8 +67,8 @@ public class UserMapper {
             .targetCompletionDate(user.getTargetCompletionDate())
             .examDate(user.getExamDate())
             .syllabusTargetDate(user.getSyllabusTargetDate())
-            .dailyTargetHours(user.getDailyTargetHours())
-            .weeklyTargetHours(user.getWeeklyTargetHours())
+            .dailyTargetHours(dailyTargetHours)
+            .weeklyTargetHours(weeklyTargetHours)
             .daysUntilExam(daysUntilExam)
             .isActive(user.getIsActive())
             .studyStreakDays(user.getStudyStreakDays())

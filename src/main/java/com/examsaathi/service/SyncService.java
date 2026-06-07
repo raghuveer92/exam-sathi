@@ -156,6 +156,11 @@ public class SyncService {
                     user.setDailyTargetHours(hours);
                     user.setWeeklyTargetHours(hours * 7);
                     userRepository.save(user);
+                    userExamRepository.findByUserIdAndIsActiveTrue(userId).ifPresent(active -> {
+                        active.setDailyTargetHours(hours);
+                        active.setWeeklyTargetHours(Math.round(hours * 7 * 10.0) / 10.0);
+                        userExamRepository.save(active);
+                    });
                 }
             }
             default -> log.warn("Unknown sync push type: {}", item.getType());

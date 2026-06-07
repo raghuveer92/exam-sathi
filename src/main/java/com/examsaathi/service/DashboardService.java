@@ -182,6 +182,7 @@ public class DashboardService {
                     .examId(examId)
                     .examName(ue.getExam().getName())
                     .examDate(ue.getExamDate())
+                    .dailyTargetHours(ue.getDailyTargetHours())
                     .daysLeft(daysLeft)
                     .totalSubjects(totalSubjects)
                     .progressPercent(progressPercent)

@@ -92,10 +92,10 @@ public class StudyProgressService {
 
         // Accumulate hours (app sends deltas, not totals)
         double existing = log.getHoursStudied() != null ? log.getHoursStudied() : 0.0;
-        log.setHoursStudied(existing + request.getHoursStudied());
+        log.setHoursStudied(Math.max(0.0, existing + request.getHoursStudied()));
         int existingTopics = log.getTopicsCompleted() != null ? log.getTopicsCompleted() : 0;
         int requestTopics = request.getTopicsCompleted() != null ? request.getTopicsCompleted() : 0;
-        log.setTopicsCompleted(existingTopics + requestTopics);
+        log.setTopicsCompleted(Math.max(0, existingTopics + requestTopics));
         studyLogRepository.save(log);
 
         // Update last study date and streak
