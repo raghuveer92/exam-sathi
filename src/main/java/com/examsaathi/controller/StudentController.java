@@ -190,10 +190,13 @@ public class StudentController {
             .orElseThrow(() -> new BadRequestException("Exam mapping not found"));
 
         userExam.setExamDate(request.getExamDate());
+        if (request.getExamDate() != null) {
+            applyAutoStudyHours(userExam, request.getExamDate());
+        }
         userExamRepository.save(userExam);
 
         if (Boolean.TRUE.equals(userExam.getIsActive())) {
-            user.setExamDate(request.getExamDate());
+            syncUserFromUserExam(user, userExam);
             userRepository.save(user);
         }
 
