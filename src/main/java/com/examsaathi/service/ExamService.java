@@ -5,7 +5,11 @@ import com.examsaathi.dto.response.ExamResponse;
 import com.examsaathi.entity.Exam;
 import com.examsaathi.entity.ExamCategory;
 import com.examsaathi.exception.ResourceNotFoundException;
+import com.examsaathi.repository.DailyStudyLogRepository;
 import com.examsaathi.repository.ExamRepository;
+import com.examsaathi.repository.QuestionRepository;
+import com.examsaathi.repository.TestAttemptAnswerRepository;
+import com.examsaathi.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,6 +24,10 @@ public class ExamService {
     private final ExamRepository examRepository;
     private final ExamCategoryService categoryService;
     private final UserMapper mapper;
+    private final UserRepository userRepository;
+    private final QuestionRepository questionRepository;
+    private final TestAttemptAnswerRepository testAttemptAnswerRepository;
+    private final DailyStudyLogRepository dailyStudyLogRepository;
 
     @Transactional(readOnly = true)
     public List<ExamResponse> getAllActiveExams() {
@@ -87,9 +95,16 @@ public class ExamService {
 
     @Transactional
     public void deleteExam(Long id) {
-        if (!examRepository.existsById(id)) {
-            throw new ResourceNotFoundException("Exam", id);
-        }
-        examRepository.deleteById(id);
+        Exam exam = examRepository.findById(id)
+            .orElseThrow(() -> new ResourceNotFoundException("Exam", id));
+
+        userRepository.clearSelectedExam(id);
+        testAttemptAnswerRepository.deleteByQuestionExamId(id);
+        questionRepository.deleteAll(questionRepository.findByExamId(id));
+        dailyStudyLogRepository.deleteByExamId(id);
+
+        // DB cascades: user_exam (+ study_progress, subject selections),
+        // exam_subjects, exam_subject_groups (+ group items).
+        examRepository.delete(exam);
     }
 }

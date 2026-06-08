@@ -2,6 +2,7 @@ package com.examsaathi.repository;
 
 import com.examsaathi.entity.DailyStudyLog;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -12,6 +13,10 @@ import java.util.Optional;
 
 @Repository
 public interface DailyStudyLogRepository extends JpaRepository<DailyStudyLog, Long> {
+
+    @Modifying
+    @Query("DELETE FROM DailyStudyLog d WHERE d.exam.id = :examId")
+    void deleteByExamId(@Param("examId") Long examId);
 
     Optional<DailyStudyLog> findByUserIdAndStudyDate(Long userId, LocalDate date);
 
