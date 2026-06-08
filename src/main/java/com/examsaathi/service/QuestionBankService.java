@@ -114,18 +114,18 @@ public class QuestionBankService {
         return importParsedQuestions(topic, examId, parsedQuestions);
     }
 
-    public void clearActiveQuestionsForTopic(Long topicId) {
+    public void deleteAllQuestionsForTopic(Long topicId) {
         if (!topicRepository.existsById(topicId)) {
             throw new ResourceNotFoundException("Topic", topicId);
         }
+        testAttemptAnswerRepository.deleteByTopicId(topicId);
         for (Question question : questionRepository.findByTopicIdOrderByIdAsc(topicId)) {
-            if (testAttemptAnswerRepository.existsByQuestionId(question.getId())) {
-                question.setIsActive(false);
-                questionRepository.save(question);
-            } else {
-                questionRepository.delete(question);
-            }
+            questionRepository.delete(question);
         }
+    }
+
+    public void clearActiveQuestionsForTopic(Long topicId) {
+        deleteAllQuestionsForTopic(topicId);
     }
 
     private BulkQuestionImportResponse importParsedQuestions(

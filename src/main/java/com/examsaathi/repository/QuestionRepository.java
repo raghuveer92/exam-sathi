@@ -28,4 +28,8 @@ public interface QuestionRepository extends JpaRepository<Question, Long> {
     long countByTopicIdAndIsActiveTrue(Long topicId);
 
     long countByTopicId(Long topicId);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("DELETE FROM Question")
+    void deleteAllRows();
 }

@@ -16,4 +16,6 @@ public class SyncCatalogResponse {
     private List<SubjectResponse> subjects;
     private List<ChapterResponse> chapters;
     private List<TopicResponse> topics;
+    /** Topic IDs with an active mock test and enough questions for offline download. */
+    private List<Long> mockTestTopicIds;
 }

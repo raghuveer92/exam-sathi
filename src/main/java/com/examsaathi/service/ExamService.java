@@ -7,8 +7,13 @@ import com.examsaathi.entity.ExamCategory;
 import com.examsaathi.exception.ResourceNotFoundException;
 import com.examsaathi.repository.DailyStudyLogRepository;
 import com.examsaathi.repository.ExamRepository;
+import com.examsaathi.repository.ExamSubjectGroupRepository;
+import com.examsaathi.repository.ExamSubjectRepository;
 import com.examsaathi.repository.QuestionRepository;
+import com.examsaathi.repository.StudyProgressRepository;
 import com.examsaathi.repository.TestAttemptAnswerRepository;
+import com.examsaathi.repository.UserExamRepository;
+import com.examsaathi.repository.UserExamSubjectSelectionRepository;
 import com.examsaathi.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -22,12 +27,17 @@ import java.util.stream.Collectors;
 public class ExamService {
 
     private final ExamRepository examRepository;
+    private final ExamSubjectGroupRepository examSubjectGroupRepository;
+    private final ExamSubjectRepository examSubjectRepository;
     private final ExamCategoryService categoryService;
     private final UserMapper mapper;
     private final UserRepository userRepository;
     private final QuestionRepository questionRepository;
     private final TestAttemptAnswerRepository testAttemptAnswerRepository;
     private final DailyStudyLogRepository dailyStudyLogRepository;
+    private final StudyProgressRepository studyProgressRepository;
+    private final UserExamSubjectSelectionRepository userExamSubjectSelectionRepository;
+    private final UserExamRepository userExamRepository;
 
     @Transactional(readOnly = true)
     public List<ExamResponse> getAllActiveExams() {
@@ -102,9 +112,13 @@ public class ExamService {
         testAttemptAnswerRepository.deleteByQuestionExamId(id);
         questionRepository.deleteAll(questionRepository.findByExamId(id));
         dailyStudyLogRepository.deleteByExamId(id);
+        studyProgressRepository.deleteByExamId(id);
+        userExamSubjectSelectionRepository.deleteByExamId(id);
+        userExamRepository.deleteByExamId(id);
+        examSubjectGroupRepository.deleteAll(
+            examSubjectGroupRepository.findByExamIdOrderByDisplayOrderAscIdAsc(id));
+        examSubjectRepository.deleteByExamId(id);
 
-        // DB cascades: user_exam (+ study_progress, subject selections),
-        // exam_subjects, exam_subject_groups (+ group items).
         examRepository.delete(exam);
     }
 }

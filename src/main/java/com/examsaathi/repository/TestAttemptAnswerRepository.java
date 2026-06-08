@@ -10,6 +10,18 @@ import java.util.List;
 
 public interface TestAttemptAnswerRepository extends JpaRepository<TestAttemptAnswer, Long> {
 
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("DELETE FROM TestAttemptAnswer a WHERE a.question.topic.id = :topicId")
+    void deleteByTopicId(@Param("topicId") Long topicId);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("DELETE FROM TestAttemptAnswer a WHERE a.question.id = :questionId")
+    void deleteByQuestionId(@Param("questionId") Long questionId);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("DELETE FROM TestAttemptAnswer")
+    void deleteAllRows();
+
     @Modifying
     @Query("DELETE FROM TestAttemptAnswer a WHERE a.question.exam.id = :examId")
     void deleteByQuestionExamId(@Param("examId") Long examId);

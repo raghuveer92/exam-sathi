@@ -2,6 +2,7 @@ package com.examsaathi.repository;
 
 import com.examsaathi.entity.StudyProgress;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -68,6 +69,10 @@ public interface StudyProgressRepository extends JpaRepository<StudyProgress, Lo
 
     /** Delete all progress records for a topic (used before topic deletion) */
     void deleteByTopicId(Long topicId);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("DELETE FROM StudyProgress sp WHERE sp.userExam.exam.id = :examId")
+    void deleteByExamId(@Param("examId") Long examId);
 
     @Query("""
         SELECT sp FROM StudyProgress sp

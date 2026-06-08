@@ -27,6 +27,8 @@ public class SyncService {
     private final SubjectRepository subjectRepository;
     private final ChapterRepository chapterRepository;
     private final TopicRepository topicRepository;
+    private final TopicTestConfigRepository topicTestConfigRepository;
+    private final QuestionRepository questionRepository;
     private final StudyProgressRepository studyProgressRepository;
     private final UserExamRepository userExamRepository;
     private final UserRepository userRepository;
@@ -60,6 +62,8 @@ public class SyncService {
             ? topicRepository.findByIsActiveTrueOrderByUpdatedAtAsc()
             : topicRepository.findByIsActiveTrueAndUpdatedAtAfterOrderByUpdatedAtAsc(since);
 
+        List<Long> mockTestTopicIds = resolveMockTestTopicIds();
+
         return SyncCatalogResponse.builder()
             .serverTime(serverTime)
             .fullSync(fullSync)
@@ -68,7 +72,20 @@ public class SyncService {
             .subjects(subjects.stream().map(s -> mapper.toSubjectResponse(s, false)).collect(Collectors.toList()))
             .chapters(chapters.stream().map(c -> mapper.toChapterResponse(c, false)).collect(Collectors.toList()))
             .topics(topics.stream().map(mapper::toTopicResponse).collect(Collectors.toList()))
+            .mockTestTopicIds(mockTestTopicIds)
             .build();
+    }
+
+    private List<Long> resolveMockTestTopicIds() {
+        return topicTestConfigRepository.findByIsActiveTrue().stream()
+            .filter(config -> {
+                Long topicId = config.getTopic().getId();
+                long available = questionRepository.countByTopicIdAndIsActiveTrue(topicId);
+                return available >= config.getNumQuestions();
+            })
+            .map(config -> config.getTopic().getId())
+            .sorted()
+            .collect(Collectors.toList());
     }
 
     @Transactional(readOnly = true)

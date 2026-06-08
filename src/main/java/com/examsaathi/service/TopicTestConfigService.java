@@ -4,13 +4,12 @@ import com.examsaathi.dto.request.TopicTestConfigRequest;
 import com.examsaathi.dto.response.TopicTestConfigResponse;
 import com.examsaathi.entity.Topic;
 import com.examsaathi.entity.TopicTestConfig;
-import com.examsaathi.exception.BadRequestException;
 import com.examsaathi.exception.ResourceNotFoundException;
 import com.examsaathi.repository.QuestionRepository;
+import com.examsaathi.repository.TestAttemptAnswerRepository;
 import com.examsaathi.repository.TestAttemptRepository;
 import com.examsaathi.repository.TopicRepository;
 import com.examsaathi.repository.TopicTestConfigRepository;
-import com.examsaathi.service.QuestionBankService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,6 +24,7 @@ public class TopicTestConfigService {
     private final TopicTestConfigRepository configRepository;
     private final TopicRepository topicRepository;
     private final QuestionRepository questionRepository;
+    private final TestAttemptAnswerRepository testAttemptAnswerRepository;
     private final TestAttemptRepository testAttemptRepository;
     private final QuestionBankService questionBankService;
 
@@ -60,12 +60,14 @@ public class TopicTestConfigService {
     public void delete(Long id) {
         TopicTestConfig config = configRepository.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException("Topic test config", id));
-        if (testAttemptRepository.countByTopicTestConfigId(id) > 0) {
-            throw new BadRequestException(
-                "Topic test config cannot be deleted because it has test attempts. Deactivate it instead.");
-        }
-        questionBankService.clearActiveQuestionsForTopic(config.getTopic().getId());
+        purgeTopicMockTestData(config.getTopic().getId());
         configRepository.deleteById(id);
+    }
+
+    public void purgeTopicMockTestData(Long topicId) {
+        testAttemptAnswerRepository.deleteByTopicId(topicId);
+        testAttemptRepository.deleteByTopicId(topicId);
+        questionBankService.deleteAllQuestionsForTopic(topicId);
     }
 
     @Transactional(readOnly = true)
@@ -88,7 +90,7 @@ public class TopicTestConfigService {
             .numQuestions(10)
             .durationMinutes(15)
             .difficultyFilter("ALL")
-            .isActive(true)
+            .isActive(false)
             .availableQuestionCount(questionRepository.countByTopicIdAndIsActiveTrue(topicId))
             .build();
     }

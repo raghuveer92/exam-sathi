@@ -2,6 +2,9 @@ package com.examsaathi.repository;
 
 import com.examsaathi.entity.UserExam;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -19,4 +22,8 @@ public interface UserExamRepository extends JpaRepository<UserExam, Long> {
     Optional<UserExam> findByUserIdAndIsActiveTrue(Long userId);
 
     long countByUserId(Long userId);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("DELETE FROM UserExam ue WHERE ue.exam.id = :examId")
+    void deleteByExamId(@Param("examId") Long examId);
 }
