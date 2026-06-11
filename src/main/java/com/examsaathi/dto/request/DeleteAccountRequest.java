@@ -1,14 +1,17 @@
 package com.examsaathi.dto.request;
 
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Size;
 import lombok.Data;
 
-/** Self-service account deletion — requires password re-confirmation. */
+/**
+ * Self-service account deletion — confirm with password (email accounts)
+ * or a fresh Google idToken (Google Sign-In accounts).
+ */
 @Data
 public class DeleteAccountRequest {
 
-    @NotBlank(message = "Password is required")
-    @Size(min = 6, message = "Password must be at least 6 characters")
+    /** Required for email/password accounts. */
     private String password;
+
+    /** Required for Google-only accounts — re-authenticate via Google Sign-In. */
+    private String idToken;
 }

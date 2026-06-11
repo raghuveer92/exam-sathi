@@ -74,7 +74,8 @@ public class StudentController {
     public ResponseEntity<ApiResponse<Void>> deleteAccount(
             @AuthenticationPrincipal UserDetails userDetails,
             @Valid @RequestBody DeleteAccountRequest request) {
-        accountService.deleteStudentAccount(userDetails.getUsername(), request.getPassword());
+        accountService.deleteStudentAccount(
+            userDetails.getUsername(), request.getPassword(), request.getIdToken());
         return ResponseEntity.ok(ApiResponse.success("Account deleted successfully", null));
     }
 

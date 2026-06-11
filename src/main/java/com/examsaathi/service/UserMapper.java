@@ -76,6 +76,7 @@ public class UserMapper {
             .roles(user.getRoles().stream().map(r -> r.getName().name()).collect(Collectors.toList()))
             .activeUserExamId(activeUserExamId)
             .userExams(userExams)
+            .authProvider(user.getAuthProvider() != null ? user.getAuthProvider().name() : "EMAIL")
             .createdAt(user.getCreatedAt())
             .build();
     }

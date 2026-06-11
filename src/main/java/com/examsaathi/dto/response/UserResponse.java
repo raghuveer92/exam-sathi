@@ -29,5 +29,7 @@ public class UserResponse {
     private List<String> roles;
     private Long activeUserExamId;
     private List<UserExamResponse> userExams;
+    /** EMAIL or GOOGLE — used by the app for sign-in / delete-account flows. */
+    private String authProvider;
     private LocalDateTime createdAt;
 }
