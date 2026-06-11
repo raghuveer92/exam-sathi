@@ -1,5 +1,6 @@
 package com.examsaathi.controller;
 
+import com.examsaathi.dto.request.DeleteAccountRequest;
 import com.examsaathi.dto.request.EnrollExamRequest;
 import com.examsaathi.dto.request.ExamGoalRequest;
 import com.examsaathi.dto.request.SubjectGroupSelectionRequest;
@@ -20,6 +21,7 @@ import com.examsaathi.repository.StudyProgressRepository;
 import com.examsaathi.repository.TopicRepository;
 import com.examsaathi.repository.UserExamRepository;
 import com.examsaathi.repository.UserRepository;
+import com.examsaathi.service.AccountService;
 import com.examsaathi.service.DashboardService;
 import com.examsaathi.service.ExamSubjectGroupService;
 import com.examsaathi.service.UserMapper;
@@ -55,6 +57,7 @@ public class StudentController {
     private final TopicRepository topicRepository;
     private final StudyProgressRepository studyProgressRepository;
     private final ExamSubjectGroupService examSubjectGroupService;
+    private final AccountService accountService;
 
     @GetMapping("/me")
     @Transactional
@@ -63,6 +66,16 @@ public class StudentController {
             @AuthenticationPrincipal UserDetails userDetails) {
         User user = userRepository.findByEmailWithExam(userDetails.getUsername()).orElseThrow();
         return ResponseEntity.ok(ApiResponse.success(userMapper.toResponse(user)));
+    }
+
+    @DeleteMapping("/me")
+    @Transactional
+    @Operation(summary = "Permanently delete the current student's account")
+    public ResponseEntity<ApiResponse<Void>> deleteAccount(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @Valid @RequestBody DeleteAccountRequest request) {
+        accountService.deleteStudentAccount(userDetails.getUsername(), request.getPassword());
+        return ResponseEntity.ok(ApiResponse.success("Account deleted successfully", null));
     }
 
     @GetMapping("/dashboard")

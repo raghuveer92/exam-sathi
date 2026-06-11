@@ -54,4 +54,8 @@ public interface DailyStudyLogRepository extends JpaRepository<DailyStudyLog, Lo
 
        @Query("SELECT COALESCE(SUM(d.topicsCompleted), 0) FROM DailyStudyLog d WHERE d.user.id = :userId AND d.studyDate = :date")
        Integer sumTopicsByUserIdAndStudyDate(@Param("userId") Long userId, @Param("date") LocalDate date);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("DELETE FROM DailyStudyLog d WHERE d.user.id = :userId")
+    void deleteByUserId(@Param("userId") Long userId);
 }

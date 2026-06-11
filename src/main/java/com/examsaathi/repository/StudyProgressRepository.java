@@ -85,4 +85,8 @@ public interface StudyProgressRepository extends JpaRepository<StudyProgress, Lo
         """)
     List<StudyProgress> findByUserIdAndUpdatedAtAfter(@Param("userId") Long userId,
                                                       @Param("since") LocalDateTime since);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("DELETE FROM StudyProgress sp WHERE sp.user.id = :userId")
+    void deleteByUserId(@Param("userId") Long userId);
 }

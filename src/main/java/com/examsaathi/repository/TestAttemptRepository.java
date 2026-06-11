@@ -40,4 +40,8 @@ public interface TestAttemptRepository extends JpaRepository<TestAttempt, Long> 
     long countByUserIdAndStatus(Long userId, TestAttempt.AttemptStatus status);
 
     long countByTopicTestConfigId(Long topicTestConfigId);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("DELETE FROM TestAttempt ta WHERE ta.user.id = :userId")
+    void deleteByUserId(@Param("userId") Long userId);
 }
