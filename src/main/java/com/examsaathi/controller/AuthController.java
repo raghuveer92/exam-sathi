@@ -1,5 +1,6 @@
 package com.examsaathi.controller;
 
+import com.examsaathi.dto.request.GoogleSignInRequest;
 import com.examsaathi.dto.request.LoginRequest;
 import com.examsaathi.dto.request.RegisterRequest;
 import com.examsaathi.dto.response.ApiResponse;
@@ -36,5 +37,13 @@ public class AuthController {
             @Valid @RequestBody LoginRequest request) {
         AuthResponse response = authService.login(request);
         return ResponseEntity.ok(ApiResponse.success("Login successful", response));
+    }
+
+    @PostMapping("/google")
+    @Operation(summary = "Sign in with Google idToken")
+    public ResponseEntity<ApiResponse<AuthResponse>> signInWithGoogle(
+            @Valid @RequestBody GoogleSignInRequest request) {
+        AuthResponse response = authService.signInWithGoogle(request);
+        return ResponseEntity.ok(ApiResponse.success("Google sign-in successful", response));
     }
 }

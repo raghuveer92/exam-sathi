@@ -31,7 +31,7 @@ public class User {
     @Column(nullable = false, unique = true, length = 100)
     private String email;
 
-    @Column(nullable = false)
+    /** Null for Google-only accounts. */
     private String password;
 
     @Column(nullable = false, length = 100)
@@ -42,6 +42,15 @@ public class User {
 
     @Column(length = 500)
     private String avatarUrl;
+
+    /** Google account subject (stable user id from Google). */
+    @Column(name = "google_id", unique = true, length = 255)
+    private String googleId;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "auth_provider", nullable = false, length = 20)
+    @Builder.Default
+    private AuthProvider authProvider = AuthProvider.EMAIL;
 
     /** Selected exam the student is preparing for */
     @ManyToOne(fetch = FetchType.LAZY)

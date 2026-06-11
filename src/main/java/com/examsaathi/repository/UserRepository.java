@@ -21,6 +21,8 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     Optional<User> findByEmail(String email);
 
+    Optional<User> findByGoogleId(String googleId);
+
     /** Find user with selectedExam and userExams eagerly fetched to avoid LazyInitializationException */
     @Query("SELECT DISTINCT u FROM User u " +
            "LEFT JOIN FETCH u.selectedExam " +

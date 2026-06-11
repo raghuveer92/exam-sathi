@@ -46,6 +46,11 @@ jwt:
   expiration: ${JWT_EXPIRATION:86400000}        # 24 hours in ms
   refresh-expiration: ${JWT_REFRESH_EXPIRATION:604800000}  # 7 days in ms
 
+# Google OAuth — comma-separated Web + Android client IDs for idToken verification
+google:
+  oauth:
+    client-ids: ${GOOGLE_OAUTH_CLIENT_IDS:}
+
 # SpringDoc / Swagger
 springdoc:
   api-docs:
