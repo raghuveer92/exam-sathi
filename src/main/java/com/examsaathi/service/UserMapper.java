@@ -71,6 +71,7 @@ public class UserMapper {
             .weeklyTargetHours(weeklyTargetHours)
             .daysUntilExam(daysUntilExam)
             .isActive(user.getIsActive())
+            .isEmailVerified(user.getIsEmailVerified())
             .studyStreakDays(user.getStudyStreakDays())
             .lastStudyDate(user.getLastStudyDate())
             .roles(user.getRoles().stream().map(r -> r.getName().name()).collect(Collectors.toList()))

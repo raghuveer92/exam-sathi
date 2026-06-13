@@ -1,5 +1,6 @@
 package com.examsaathi.service;
 
+import com.examsaathi.config.CacheNames;
 import com.examsaathi.dto.request.ExamSubjectGroupRequest;
 import com.examsaathi.dto.request.SubjectGroupSelectionRequest;
 import com.examsaathi.dto.response.ExamSubjectGroupResponse;
@@ -9,6 +10,7 @@ import com.examsaathi.exception.BadRequestException;
 import com.examsaathi.exception.ResourceNotFoundException;
 import com.examsaathi.repository.*;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,6 +32,7 @@ public class ExamSubjectGroupService {
     private final ExamSubjectGroupItemRepository examSubjectGroupItemRepository;
     private final UserExamSubjectSelectionRepository userExamSubjectSelectionRepository;
     private final UserMapper userMapper;
+    private final CacheEvictionService cacheEvictionService;
 
     @Transactional
     public ExamSubjectGroup ensureDefaultMandatoryGroup(Long examId) {
@@ -55,6 +58,7 @@ public class ExamSubjectGroupService {
     }
 
     @Transactional(readOnly = true)
+    @Cacheable(value = CacheNames.EXAM_SUBJECT_GROUPS, key = "'exam_' + #examId")
     public List<ExamSubjectGroupResponse> getGroupsByExam(Long examId) {
         return buildGroupResponses(examId, null);
     }
@@ -82,10 +86,12 @@ public class ExamSubjectGroupService {
             .build());
 
         addSubjectsToGroup(group, request.getSubjectIds());
-        return buildGroupResponses(exam.getId(), null).stream()
-            .filter(response -> response.getId().equals(group.getId()))
+        ExamSubjectGroupResponse response = buildGroupResponses(exam.getId(), null).stream()
+            .filter(r -> r.getId().equals(group.getId()))
             .findFirst()
             .orElseThrow();
+        cacheEvictionService.evictCatalogData();
+        return response;
     }
 
     @Transactional
@@ -106,10 +112,12 @@ public class ExamSubjectGroupService {
         examSubjectGroupRepository.save(group);
 
         addSubjectsToGroup(group, request.getSubjectIds());
-        return buildGroupResponses(group.getExam().getId(), null).stream()
-            .filter(response -> response.getId().equals(groupId))
+        ExamSubjectGroupResponse response = buildGroupResponses(group.getExam().getId(), null).stream()
+            .filter(r -> r.getId().equals(groupId))
             .findFirst()
             .orElseThrow();
+        cacheEvictionService.evictCatalogData();
+        return response;
     }
 
     @Transactional
@@ -122,6 +130,7 @@ public class ExamSubjectGroupService {
         }
 
         examSubjectGroupRepository.delete(group);
+        cacheEvictionService.evictCatalogData();
     }
 
     @Transactional

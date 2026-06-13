@@ -7,6 +7,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 
 @Repository
@@ -35,4 +36,12 @@ public interface ExamRepository extends JpaRepository<Exam, Long> {
     java.util.Optional<Exam> findByNameIgnoreCase(String name);
 
     List<Exam> findByIsActiveTrueAndUpdatedAtAfterOrderByUpdatedAtAsc(LocalDateTime since);
+
+    @Query("""
+        SELECT e FROM Exam e
+        JOIN FETCH e.category
+        WHERE e.id IN :ids AND e.isActive = true
+        ORDER BY e.displayOrder ASC, e.name ASC
+        """)
+    List<Exam> findActiveByIdInWithCategory(@Param("ids") Collection<Long> ids);
 }

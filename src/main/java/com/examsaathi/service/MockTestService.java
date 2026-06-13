@@ -1,5 +1,6 @@
 package com.examsaathi.service;
 
+import com.examsaathi.config.CacheNames;
 import com.examsaathi.dto.request.SubmitTestAnswerRequest;
 import com.examsaathi.dto.request.SubmitTestRequest;
 import com.examsaathi.dto.response.*;
@@ -8,6 +9,7 @@ import com.examsaathi.exception.BadRequestException;
 import com.examsaathi.exception.ResourceNotFoundException;
 import com.examsaathi.repository.*;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,6 +28,7 @@ public class MockTestService {
     private final TopicRepository topicRepository;
     private final UserRepository userRepository;
     private final TopicTestConfigService topicTestConfigService;
+    private final CacheEvictionService cacheEvictionService;
 
     public TestAttemptResponse startTest(Long userId, Long topicId) {
         User user = userRepository.findById(userId)
@@ -159,7 +162,10 @@ public class MockTestService {
             ? TestAttempt.AttemptStatus.TIMED_OUT
             : TestAttempt.AttemptStatus.SUBMITTED);
 
-        return toCompletedResponse(attemptRepository.save(attempt), true);
+        TestAttemptResponse response = toCompletedResponse(attemptRepository.save(attempt), true);
+        cacheEvictionService.evictDashboard(userId);
+        cacheEvictionService.evictLeaderboardAndAnalytics();
+        return response;
     }
 
     @Transactional(readOnly = true)
@@ -218,6 +224,7 @@ public class MockTestService {
     }
 
     @Transactional(readOnly = true)
+    @Cacheable(value = CacheNames.MOCK_TEST_INFO, key = "'topic_' + #topicId")
     public TopicTestConfigResponse getTopicTestInfo(Long topicId) {
         return topicTestConfigService.getByTopicId(topicId);
     }

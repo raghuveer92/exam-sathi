@@ -30,6 +30,11 @@ public class QuestionBankService {
     private final SubjectRepository subjectRepository;
     private final ChapterRepository chapterRepository;
     private final TopicRepository topicRepository;
+    private final CacheEvictionService cacheEvictionService;
+
+    private void evictAfterMutation() {
+        cacheEvictionService.evictCatalogData();
+    }
 
     @Transactional(readOnly = true)
     public List<QuestionResponse> listQuestions(Long topicId, Long chapterId, Long subjectId, Long examId) {
@@ -65,7 +70,9 @@ public class QuestionBankService {
     public QuestionResponse create(QuestionRequest request) {
         Question question = buildQuestion(new Question(), request);
         validateOptions(question);
-        return toResponse(questionRepository.save(question));
+        QuestionResponse response = toResponse(questionRepository.save(question));
+        evictAfterMutation();
+        return response;
     }
 
     public QuestionResponse update(Long id, QuestionRequest request) {
@@ -73,7 +80,9 @@ public class QuestionBankService {
         question.getOptions().clear();
         buildQuestion(question, request);
         validateOptions(question);
-        return toResponse(questionRepository.save(question));
+        QuestionResponse response = toResponse(questionRepository.save(question));
+        evictAfterMutation();
+        return response;
     }
 
     public void delete(Long id) {
@@ -85,12 +94,15 @@ public class QuestionBankService {
                 "Question cannot be deleted because it is used in test attempts. Deactivate it instead.");
         }
         questionRepository.deleteById(id);
+        evictAfterMutation();
     }
 
     public QuestionResponse updateStatus(Long id, boolean isActive) {
         Question question = findQuestion(id);
         question.setIsActive(isActive);
-        return toResponse(questionRepository.save(question));
+        QuestionResponse response = toResponse(questionRepository.save(question));
+        evictAfterMutation();
+        return response;
     }
 
     public BulkQuestionImportResponse replaceQuestionsForTopic(
@@ -104,14 +116,18 @@ public class QuestionBankService {
             QuestionTextFormatParser.parseReplaceContent(request.getTextContent());
         clearActiveQuestionsForTopic(topicId);
         if (parsedQuestions.isEmpty()) {
-            return BulkQuestionImportResponse.builder()
+            BulkQuestionImportResponse empty = BulkQuestionImportResponse.builder()
                 .totalRows(0)
                 .imported(0)
                 .failed(0)
                 .errors(List.of())
                 .build();
+            evictAfterMutation();
+            return empty;
         }
-        return importParsedQuestions(topic, examId, parsedQuestions);
+        BulkQuestionImportResponse response = importParsedQuestions(topic, examId, parsedQuestions);
+        evictAfterMutation();
+        return response;
     }
 
     public void deleteAllQuestionsForTopic(Long topicId) {
@@ -122,6 +138,7 @@ public class QuestionBankService {
         for (Question question : questionRepository.findByTopicIdOrderByIdAsc(topicId)) {
             questionRepository.delete(question);
         }
+        evictAfterMutation();
     }
 
     public void clearActiveQuestionsForTopic(Long topicId) {

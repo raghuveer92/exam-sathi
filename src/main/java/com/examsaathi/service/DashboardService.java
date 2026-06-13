@@ -1,9 +1,11 @@
 package com.examsaathi.service;
 
+import com.examsaathi.config.CacheNames;
 import com.examsaathi.dto.response.*;
 import com.examsaathi.entity.*;
 import com.examsaathi.repository.*;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,6 +32,7 @@ public class DashboardService {
     private final ExamSubjectGroupService examSubjectGroupService;
     private final UserMapper mapper;
 
+    @Cacheable(value = CacheNames.DASHBOARD, key = "#userId")
     public DashboardResponse getDashboard(Long userId) {
         User user = userRepository.findById(userId)
             .orElseThrow(() -> new RuntimeException("User not found"));

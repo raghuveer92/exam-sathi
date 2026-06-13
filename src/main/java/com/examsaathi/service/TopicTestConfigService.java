@@ -1,5 +1,6 @@
 package com.examsaathi.service;
 
+import com.examsaathi.config.CacheNames;
 import com.examsaathi.dto.request.TopicTestConfigRequest;
 import com.examsaathi.dto.response.TopicTestConfigResponse;
 import com.examsaathi.entity.Topic;
@@ -11,6 +12,7 @@ import com.examsaathi.repository.TestAttemptRepository;
 import com.examsaathi.repository.TopicRepository;
 import com.examsaathi.repository.TopicTestConfigRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,13 +29,16 @@ public class TopicTestConfigService {
     private final TestAttemptAnswerRepository testAttemptAnswerRepository;
     private final TestAttemptRepository testAttemptRepository;
     private final QuestionBankService questionBankService;
+    private final CacheEvictionService cacheEvictionService;
 
     @Transactional(readOnly = true)
+    @Cacheable(value = CacheNames.TOPIC_TEST_CONFIG, key = "'all'")
     public List<TopicTestConfigResponse> listAll() {
         return configRepository.findAll().stream().map(this::toResponse).toList();
     }
 
     @Transactional(readOnly = true)
+    @Cacheable(value = CacheNames.TOPIC_TEST_CONFIG, key = "'topic_' + #topicId")
     public TopicTestConfigResponse getByTopicId(Long topicId) {
         return configRepository.findByTopicId(topicId)
             .map(this::toResponse)
@@ -54,7 +59,10 @@ public class TopicTestConfigService {
         if (request.getIsActive() != null) {
             config.setIsActive(request.getIsActive());
         }
-        return toResponse(configRepository.save(config));
+        TopicTestConfigResponse response = toResponse(configRepository.save(config));
+        cacheEvictionService.evictCatalogData();
+        cacheEvictionService.evictMockTestInfo(request.getTopicId());
+        return response;
     }
 
     public void delete(Long id) {
@@ -62,6 +70,8 @@ public class TopicTestConfigService {
             .orElseThrow(() -> new ResourceNotFoundException("Topic test config", id));
         purgeTopicMockTestData(config.getTopic().getId());
         configRepository.deleteById(id);
+        cacheEvictionService.evictCatalogData();
+        cacheEvictionService.evictMockTestInfo(config.getTopic().getId());
     }
 
     public void purgeTopicMockTestData(Long topicId) {

@@ -25,6 +25,7 @@ import com.examsaathi.service.AccountService;
 import com.examsaathi.service.DashboardService;
 import com.examsaathi.service.ExamSubjectGroupService;
 import com.examsaathi.service.UserMapper;
+import com.examsaathi.util.EmailVerificationGuard;
 import jakarta.validation.Valid;
 import jakarta.transaction.Transactional;
 import io.swagger.v3.oas.annotations.Operation;
@@ -94,6 +95,7 @@ public class StudentController {
             @AuthenticationPrincipal UserDetails userDetails,
             @PathVariable Long examId) {
         User user = userRepository.findByEmailWithExam(userDetails.getUsername()).orElseThrow();
+        EmailVerificationGuard.requireVerifiedForExamSetup(user);
         UserExam userExam = upsertUserExam(user, examId, null, null, null);
         if (examSubjectGroupService.hasRequiredOptionalGroups(examId) && !examSubjectGroupService.hasValidSelections(userExam)) {
             throw new BadRequestException("Subject selections are required for this exam");
@@ -123,6 +125,7 @@ public class StudentController {
             @AuthenticationPrincipal UserDetails userDetails,
             @Valid @RequestBody UserExamCreateRequest request) {
         User user = userRepository.findByEmailWithExam(userDetails.getUsername()).orElseThrow();
+        EmailVerificationGuard.requireVerifiedForExamSetup(user);
         UserExam userExam = upsertUserExam(user, request.getExamId(), request.getExamDate(),
             request.getDailyTargetHours(), request.getExperienceLevel());
         examSubjectGroupService.saveSelections(userExam, request.getSubjectSelections());
@@ -138,6 +141,7 @@ public class StudentController {
             @AuthenticationPrincipal UserDetails userDetails,
             @Valid @RequestBody EnrollExamRequest request) {
         User user = userRepository.findByEmailWithExam(userDetails.getUsername()).orElseThrow();
+        EmailVerificationGuard.requireVerifiedForExamSetup(user);
         UserExam userExam = upsertUserExam(user, request.getExamId(), request.getExamDate(),
             request.getDailyTargetHours(), request.getExperienceLevel());
 
@@ -284,6 +288,7 @@ public class StudentController {
             @AuthenticationPrincipal UserDetails userDetails,
             @RequestBody ExamGoalRequest request) {
         User user = userRepository.findByEmailWithExam(userDetails.getUsername()).orElseThrow();
+        EmailVerificationGuard.requireVerifiedForExamSetup(user);
         UserExam userExam;
         if (request.getUserExamId() != null) {
             userExam = userExamRepository.findById(request.getUserExamId())

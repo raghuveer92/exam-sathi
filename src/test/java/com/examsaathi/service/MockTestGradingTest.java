@@ -23,7 +23,7 @@ class MockTestGradingTest {
         question.getOptions().add(option("A", true));
         question.getOptions().add(option("B", false));
 
-        MockTestService service = new MockTestService(null, null, null, null, null, null);
+        MockTestService service = new MockTestService(null, null, null, null, null, null, null);
         Method grade = MockTestService.class.getDeclaredMethod("gradeAnswer", Question.class, String.class);
         grade.setAccessible(true);
 
@@ -43,7 +43,7 @@ class MockTestGradingTest {
         question.getOptions().add(option("B", true));
         question.getOptions().add(option("C", false));
 
-        MockTestService service = new MockTestService(null, null, null, null, null, null);
+        MockTestService service = new MockTestService(null, null, null, null, null, null, null);
         Method grade = MockTestService.class.getDeclaredMethod("gradeAnswer", Question.class, String.class);
         grade.setAccessible(true);
 

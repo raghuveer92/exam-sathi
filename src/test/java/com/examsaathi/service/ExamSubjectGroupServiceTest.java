@@ -57,6 +57,9 @@ class ExamSubjectGroupServiceTest {
     @Mock
     private UserExamSubjectSelectionRepository userExamSubjectSelectionRepository;
 
+    @Mock
+    private CacheEvictionService cacheEvictionService;
+
     private ExamSubjectGroupService service;
 
     private Exam exam;
@@ -80,7 +83,8 @@ class ExamSubjectGroupServiceTest {
             examSubjectGroupRepository,
             examSubjectGroupItemRepository,
             userExamSubjectSelectionRepository,
-            new UserMapper()
+            new UserMapper(),
+            cacheEvictionService
         );
 
         exam = Exam.builder().id(1L).name("UPSC").build();

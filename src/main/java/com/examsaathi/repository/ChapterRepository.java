@@ -7,6 +7,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 
 @Repository
@@ -24,4 +25,12 @@ public interface ChapterRepository extends JpaRepository<Chapter, Long> {
     List<Chapter> findByIsActiveTrueOrderByUpdatedAtAsc();
 
     List<Chapter> findByIsActiveTrueAndUpdatedAtAfterOrderByUpdatedAtAsc(LocalDateTime since);
+
+    @Query("""
+        SELECT c FROM Chapter c
+        WHERE c.subject.id IN :subjectIds AND c.isActive = true
+        ORDER BY c.orderIndex ASC
+        """)
+    List<Chapter> findBySubjectIdInAndIsActiveTrueOrderByOrderIndexAsc(
+        @Param("subjectIds") Collection<Long> subjectIds);
 }

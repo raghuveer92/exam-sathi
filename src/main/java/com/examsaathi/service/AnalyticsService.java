@@ -1,9 +1,11 @@
 package com.examsaathi.service;
 
+import com.examsaathi.config.CacheNames;
 import com.examsaathi.dto.response.*;
 import com.examsaathi.entity.*;
 import com.examsaathi.repository.*;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,6 +28,7 @@ public class AnalyticsService {
     private final TopicRepository topicRepository;
     private final UserMapper mapper;
 
+    @Cacheable(value = CacheNames.ANALYTICS, key = "'admin'")
     public AdminAnalyticsResponse getAdminAnalytics() {
         long totalStudents = userRepository.countStudents();
         long activeToday = studyLogRepository.countDailyActiveUsers(LocalDate.now());

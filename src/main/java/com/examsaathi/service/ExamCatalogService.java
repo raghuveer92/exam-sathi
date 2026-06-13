@@ -1,5 +1,6 @@
 package com.examsaathi.service;
 
+import com.examsaathi.config.CacheNames;
 import com.examsaathi.dto.response.ExamCatalogResponse;
 import com.examsaathi.dto.response.ExamCategoryResponse;
 import com.examsaathi.dto.response.ExamResponse;
@@ -7,6 +8,7 @@ import com.examsaathi.entity.Exam;
 import com.examsaathi.repository.ExamRepository;
 import com.examsaathi.repository.UserExamRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,6 +27,7 @@ public class ExamCatalogService {
     private final UserMapper mapper;
 
     @Transactional(readOnly = true)
+    @Cacheable(value = CacheNames.EXAM_CATALOG, key = "'catalog_' + (#userId != null ? #userId : 'anon')")
     public ExamCatalogResponse getCatalog(Long userId) {
         List<ExamCategoryResponse> categories = categoryService.getActiveCategories();
         List<ExamResponse> featured = examRepository.findByIsActiveTrueAndFeaturedTrueOrderByFeaturedOrderAscDisplayOrderAscNameAsc()
@@ -38,18 +41,21 @@ public class ExamCatalogService {
     }
 
     @Transactional(readOnly = true)
+    @Cacheable(value = CacheNames.EXAM_CATALOG, key = "'category_' + #categoryId")
     public List<ExamResponse> getExamsByCategory(Long categoryId) {
         return examRepository.findByIsActiveTrueAndCategoryIdOrderByDisplayOrderAscNameAsc(categoryId)
             .stream().map(e -> mapper.toExamResponse(e, false)).collect(Collectors.toList());
     }
 
     @Transactional(readOnly = true)
+    @Cacheable(value = CacheNames.EXAM_CATALOG, key = "'featured'")
     public List<ExamResponse> getFeatured() {
         return examRepository.findByIsActiveTrueAndFeaturedTrueOrderByFeaturedOrderAscDisplayOrderAscNameAsc()
             .stream().map(e -> mapper.toExamResponse(e, false)).collect(Collectors.toList());
     }
 
     @Transactional(readOnly = true)
+    @Cacheable(value = CacheNames.EXAM_CATALOG, key = "'search_' + (#query != null ? #query.trim().toLowerCase() : '')")
     public List<ExamResponse> search(String query) {
         if (query == null || query.trim().isEmpty()) {
             return examRepository.findByIsActiveTrueOrderByDisplayOrderAscNameAsc()
@@ -60,6 +66,7 @@ public class ExamCatalogService {
     }
 
     @Transactional(readOnly = true)
+    @Cacheable(value = CacheNames.EXAM_CATALOG, key = "'recommended_' + (#userId != null ? #userId : 'anon')")
     public List<ExamResponse> getRecommended(Long userId) {
         Set<Long> enrolled = new HashSet<>();
         if (userId != null) {

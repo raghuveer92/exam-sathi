@@ -80,6 +80,27 @@ public class User {
     @Builder.Default
     private Boolean isEmailVerified = false;
 
+    @Column(name = "email_otp", length = 10)
+    private String emailOtp;
+
+    @Column(name = "email_otp_expiry")
+    private LocalDateTime emailOtpExpiry;
+
+    @Builder.Default
+    @Column(name = "email_otp_attempts", nullable = false)
+    private Integer emailOtpAttempts = 0;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "otp_purpose", length = 50)
+    private OtpPurpose otpPurpose;
+
+    @Builder.Default
+    @Column(name = "otp_send_count", nullable = false)
+    private Integer otpSendCount = 0;
+
+    @Column(name = "otp_send_window_start")
+    private LocalDateTime otpSendWindowStart;
+
     /** Streak counter — consecutive days with study activity */
     @Builder.Default
     private Integer studyStreakDays = 0;

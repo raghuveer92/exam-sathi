@@ -24,6 +24,7 @@ public class UserResponse {
     private Double weeklyTargetHours;
     private Integer daysUntilExam;
     private Boolean isActive;
+    private Boolean isEmailVerified;
     private Integer studyStreakDays;
     private LocalDateTime lastStudyDate;
     private List<String> roles;

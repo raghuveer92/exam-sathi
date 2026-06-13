@@ -29,6 +29,21 @@ public interface QuestionRepository extends JpaRepository<Question, Long> {
 
     long countByTopicId(Long topicId);
 
+    /** Single query for mock-test topics with enough active questions (replaces per-topic counts). */
+    @Query(value = """
+        SELECT ttc.topic_id
+        FROM topic_test_configs ttc
+        INNER JOIN (
+            SELECT topic_id, COUNT(*) AS cnt
+            FROM questions
+            WHERE is_active = true
+            GROUP BY topic_id
+        ) q ON q.topic_id = ttc.topic_id
+        WHERE ttc.is_active = true AND q.cnt >= ttc.num_questions
+        ORDER BY ttc.topic_id
+        """, nativeQuery = true)
+    List<Long> findReadyMockTestTopicIds();
+
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("DELETE FROM Question")
     void deleteAllRows();

@@ -1,5 +1,6 @@
 package com.examsaathi.service;
 
+import com.examsaathi.config.CacheNames;
 import com.examsaathi.dto.request.ChapterRequest;
 import com.examsaathi.dto.request.TopicRequest;
 import com.examsaathi.dto.response.ChapterResponse;
@@ -13,6 +14,7 @@ import com.examsaathi.repository.StudyProgressRepository;
 import com.examsaathi.repository.SubjectRepository;
 import com.examsaathi.repository.TopicRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,16 +32,19 @@ public class SyllabusService {
     private final SubjectRepository subjectRepository;
     private final StudyProgressRepository progressRepository;
     private final UserMapper mapper;
+    private final CacheEvictionService cacheEvictionService;
 
     // ========== Chapters ==========
 
     @Transactional(readOnly = true)
+    @Cacheable(value = CacheNames.CHAPTERS_BY_SUBJECT, key = "'subject_' + #subjectId")
     public List<ChapterResponse> getChaptersBySubject(Long subjectId) {
         return chapterRepository.findBySubjectIdAndIsActiveTrueOrderByOrderIndexAsc(subjectId)
             .stream().map(c -> mapper.toChapterResponse(c, false)).collect(Collectors.toList());
     }
 
     @Transactional(readOnly = true)
+    @Cacheable(value = CacheNames.CHAPTERS, key = "'chapter_' + #id")
     public ChapterResponse getChapterById(Long id) {
         Chapter chapter = chapterRepository.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException("Chapter", id));
@@ -59,7 +64,13 @@ public class SyllabusService {
             .isActive(request.getIsActive())
             .build();
 
-        return mapper.toChapterResponse(chapterRepository.save(chapter), false);
+        ChapterResponse response = mapper.toChapterResponse(chapterRepository.save(chapter), false);
+        evictAfterMutation();
+        return response;
+    }
+
+    private void evictAfterMutation() {
+        cacheEvictionService.evictCatalogData();
     }
 
     @Transactional
@@ -70,24 +81,37 @@ public class SyllabusService {
         chapter.setDescription(request.getDescription());
         chapter.setOrderIndex(request.getOrderIndex());
         if (request.getIsActive() != null) chapter.setIsActive(request.getIsActive());
-        return mapper.toChapterResponse(chapterRepository.save(chapter), false);
+        ChapterResponse response = mapper.toChapterResponse(chapterRepository.save(chapter), false);
+        evictAfterMutation();
+        return response;
     }
 
     @Transactional
     public void deleteChapter(Long id) {
         if (!chapterRepository.existsById(id)) throw new ResourceNotFoundException("Chapter", id);
         chapterRepository.deleteById(id);
+        evictAfterMutation();
     }
 
     // ========== Topics ==========
 
     @Transactional(readOnly = true)
+    @Cacheable(value = CacheNames.TOPICS_BY_EXAM, key = "'exam_' + #examId")
+    public List<TopicResponse> getTopicsByExam(Long examId) {
+        return topicRepository.findByExamId(examId).stream()
+            .map(mapper::toTopicResponse)
+            .collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    @Cacheable(value = CacheNames.TOPICS_BY_CHAPTER, key = "'chapter_' + #chapterId")
     public List<TopicResponse> getTopicsByChapter(Long chapterId) {
         return topicRepository.findByChapterIdAndIsActiveTrueOrderByOrderIndexAsc(chapterId)
             .stream().map(mapper::toTopicResponse).collect(Collectors.toList());
     }
 
     @Transactional(readOnly = true)
+    @Cacheable(value = CacheNames.TOPICS, key = "'topic_' + #id")
     public TopicResponse getTopicById(Long id) {
         Topic topic = topicRepository.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException("Topic", id));
@@ -97,7 +121,9 @@ public class SyllabusService {
     @Transactional
     public TopicResponse createTopic(TopicRequest request) {
         Topic topic = toTopicEntity(request, new HashMap<>());
-        return mapper.toTopicResponse(topicRepository.save(topic));
+        TopicResponse response = mapper.toTopicResponse(topicRepository.save(topic));
+        evictAfterMutation();
+        return response;
     }
 
     @Transactional
@@ -106,10 +132,12 @@ public class SyllabusService {
         List<Topic> topics = requests.stream()
             .map(request -> toTopicEntity(request, chaptersById))
             .toList();
-        return topicRepository.saveAll(topics)
+        List<TopicResponse> response = topicRepository.saveAll(topics)
             .stream()
             .map(mapper::toTopicResponse)
             .collect(Collectors.toList());
+        evictAfterMutation();
+        return response;
     }
 
     @Transactional
@@ -122,15 +150,17 @@ public class SyllabusService {
         topic.setDifficultyLevel(request.getDifficultyLevel());
         topic.setOrderIndex(request.getOrderIndex());
         if (request.getIsActive() != null) topic.setIsActive(request.getIsActive());
-        return mapper.toTopicResponse(topicRepository.save(topic));
+        TopicResponse response = mapper.toTopicResponse(topicRepository.save(topic));
+        evictAfterMutation();
+        return response;
     }
 
     @Transactional
     public void deleteTopic(Long id) {
         if (!topicRepository.existsById(id)) throw new ResourceNotFoundException("Topic", id);
-        // Remove FK-dependent progress records first to avoid constraint violation
         progressRepository.deleteByTopicId(id);
         topicRepository.deleteById(id);
+        evictAfterMutation();
     }
 
     private Topic toTopicEntity(TopicRequest request, Map<Long, Chapter> chaptersById) {

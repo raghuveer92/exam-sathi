@@ -51,6 +51,18 @@ google:
   oauth:
     client-ids: ${GOOGLE_OAUTH_CLIENT_IDS:}
 
+# Brevo transactional email (REST API)
+brevo:
+  api-key: ${BREVO_API_KEY:}
+  sender-name: Exam Saathi
+  sender-email: examsathi5@gmail.com
+  verification-base-url: ${BREVO_VERIFICATION_BASE_URL:https://api.examsaathi.com/api}
+  password-reset-base-url: ${BREVO_PASSWORD_RESET_BASE_URL:https://app.examsaathi.com}
+  connect-timeout-ms: 5000
+  read-timeout-ms: 10000
+  max-retries: 3
+  retry-delay-ms: 1000
+
 # SpringDoc / Swagger
 springdoc:
   api-docs:
@@ -80,3 +92,7 @@ logging:
     com.examsaathi: INFO
     org.springframework.security: WARN
     org.hibernate.SQL: WARN
+
+app:
+  cache:
+    warmup-enabled: true

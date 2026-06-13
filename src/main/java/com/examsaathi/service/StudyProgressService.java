@@ -38,6 +38,7 @@ public class StudyProgressService {
     private final UserExamRepository userExamRepository;
     private final ExamSubjectGroupService examSubjectGroupService;
     private final UserMapper mapper;
+    private final CacheEvictionService cacheEvictionService;
 
     /** Mark a topic complete or update study hours */
     @Transactional
@@ -75,6 +76,7 @@ public class StudyProgressService {
 
         progressRepository.save(progress);
         updateStreak(userId);
+        cacheEvictionService.evictDashboard(userId);
     }
 
     /** Add or update daily study log */
@@ -103,7 +105,9 @@ public class StudyProgressService {
         userRepository.save(user);
         updateStreak(userId);
 
-        return mapper.toDailyLogResponse(log);
+        DailyStudyLogResponse response = mapper.toDailyLogResponse(log);
+        cacheEvictionService.evictDashboard(userId);
+        return response;
     }
 
     /** Get weekly study logs for a student */

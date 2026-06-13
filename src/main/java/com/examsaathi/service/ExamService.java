@@ -1,5 +1,7 @@
 package com.examsaathi.service;
 
+import com.examsaathi.config.CacheKeyBuilder;
+import com.examsaathi.config.CacheNames;
 import com.examsaathi.dto.request.ExamRequest;
 import com.examsaathi.dto.response.ExamResponse;
 import com.examsaathi.entity.Exam;
@@ -16,6 +18,7 @@ import com.examsaathi.repository.UserExamRepository;
 import com.examsaathi.repository.UserExamSubjectSelectionRepository;
 import com.examsaathi.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -38,14 +41,17 @@ public class ExamService {
     private final StudyProgressRepository studyProgressRepository;
     private final UserExamSubjectSelectionRepository userExamSubjectSelectionRepository;
     private final UserExamRepository userExamRepository;
+    private final CacheEvictionService cacheEvictionService;
 
     @Transactional(readOnly = true)
+    @Cacheable(value = CacheNames.EXAM_LIST, key = "'all'")
     public List<ExamResponse> getAllActiveExams() {
         return examRepository.findByIsActiveTrueOrderByDisplayOrderAscNameAsc()
             .stream().map(e -> mapper.toExamResponse(e, false)).collect(Collectors.toList());
     }
 
     @Transactional(readOnly = true)
+    @Cacheable(value = CacheNames.EXAMS, key = "T(com.examsaathi.config.CacheKeyBuilder).exam(#id)")
     public ExamResponse getExamById(Long id) {
         Exam exam = examRepository.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException("Exam", id));
@@ -70,7 +76,9 @@ public class ExamService {
             .colorCode(request.getColorCode())
             .isActive(request.getIsActive())
             .build();
-        return mapper.toExamResponse(examRepository.save(exam), false);
+        ExamResponse response = mapper.toExamResponse(examRepository.save(exam), false);
+        cacheEvictionService.evictCatalogData();
+        return response;
     }
 
     @Transactional
@@ -78,7 +86,9 @@ public class ExamService {
         Exam exam = examRepository.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException("Exam", id));
         applyRequest(exam, request);
-        return mapper.toExamResponse(examRepository.save(exam), false);
+        ExamResponse response = mapper.toExamResponse(examRepository.save(exam), false);
+        cacheEvictionService.evictCatalogData();
+        return response;
     }
 
     private void applyRequest(Exam exam, ExamRequest request) {
@@ -120,5 +130,6 @@ public class ExamService {
         examSubjectRepository.deleteByExamId(id);
 
         examRepository.delete(exam);
+        cacheEvictionService.evictCatalogData();
     }
 }

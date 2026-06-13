@@ -19,6 +19,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @RestController
 @RequestMapping("/sync")
@@ -33,8 +34,9 @@ public class SyncController {
     @Operation(summary = "Delta sync for master catalog (exams, subjects, chapters, topics)")
     public ResponseEntity<ApiResponse<SyncCatalogResponse>> syncCatalog(
             @RequestParam(required = false)
-            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime since) {
-        return ResponseEntity.ok(ApiResponse.success(syncService.getCatalogSync(since)));
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime since,
+            @RequestParam(required = false) List<Long> examIds) {
+        return ResponseEntity.ok(ApiResponse.success(syncService.getCatalogSync(since, examIds)));
     }
 
     @GetMapping("/bundle")

@@ -1,5 +1,7 @@
 package com.examsaathi.service;
 
+import com.examsaathi.config.CacheKeyBuilder;
+import com.examsaathi.config.CacheNames;
 import com.examsaathi.dto.request.ProgressUpdateRequest;
 import com.examsaathi.dto.request.StudyLogRequest;
 import com.examsaathi.dto.request.SyncPushItem;
@@ -10,6 +12,7 @@ import com.examsaathi.repository.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,7 +30,6 @@ public class SyncService {
     private final SubjectRepository subjectRepository;
     private final ChapterRepository chapterRepository;
     private final TopicRepository topicRepository;
-    private final TopicTestConfigRepository topicTestConfigRepository;
     private final QuestionRepository questionRepository;
     private final StudyProgressRepository studyProgressRepository;
     private final UserExamRepository userExamRepository;
@@ -38,9 +40,25 @@ public class SyncService {
     private final ObjectMapper objectMapper;
 
     @Transactional(readOnly = true)
-    public SyncCatalogResponse getCatalogSync(LocalDateTime since) {
-        LocalDateTime serverTime = LocalDateTime.now();
+    @Cacheable(
+        value = CacheNames.SYNC_CATALOG,
+        key = "T(com.examsaathi.config.CacheKeyBuilder).syncCatalog(#since, #examIds)",
+        unless = "#since != null"
+    )
+    public SyncCatalogResponse getCatalogSync(LocalDateTime since, List<Long> examIds) {
+        List<Long> scopedExamIds = normalizeExamIds(examIds);
         boolean fullSync = since == null;
+
+        SyncCatalogResponse response = scopedExamIds.isEmpty()
+            ? buildFullCatalog(since)
+            : buildExamScopedCatalog(since, scopedExamIds);
+
+        return response;
+    }
+
+    private SyncCatalogResponse buildFullCatalog(LocalDateTime since) {
+        boolean fullSync = since == null;
+        LocalDateTime serverTime = LocalDateTime.now();
 
         List<ExamCategory> categories = fullSync
             ? categoryRepository.findByIsActiveTrueOrderByDisplayOrderAscNameAsc()
@@ -62,7 +80,120 @@ public class SyncService {
             ? topicRepository.findByIsActiveTrueOrderByUpdatedAtAsc()
             : topicRepository.findByIsActiveTrueAndUpdatedAtAfterOrderByUpdatedAtAsc(since);
 
-        List<Long> mockTestTopicIds = resolveMockTestTopicIds();
+        return toCatalogResponse(serverTime, fullSync, categories, exams, subjects, chapters, topics, null);
+    }
+
+    private SyncCatalogResponse buildExamScopedCatalog(LocalDateTime since, List<Long> examIds) {
+        LocalDateTime serverTime = LocalDateTime.now();
+        boolean fullSync = since == null;
+
+        ExamScopeData scope = loadExamScopeData(examIds);
+
+        List<ExamCategory> categories;
+        List<Exam> exams;
+        List<Subject> subjects;
+        List<Chapter> chapters;
+        List<Topic> topics;
+
+        if (fullSync) {
+            exams = scope.exams();
+            categories = scope.categories();
+            subjects = scope.subjects();
+            chapters = scope.chapters();
+            topics = scope.topics();
+        } else {
+            Set<Long> subjectIds = scope.subjectIds();
+            Set<Long> topicIds = scope.topicIds();
+            Set<Long> categoryIds = scope.categoryIds();
+
+            categories = categoryRepository.findByIsActiveTrueAndUpdatedAtAfterOrderByUpdatedAtAsc(since)
+                .stream()
+                .filter(c -> categoryIds.contains(c.getId()))
+                .collect(Collectors.toList());
+            exams = examRepository.findByIsActiveTrueAndUpdatedAtAfterOrderByUpdatedAtAsc(since)
+                .stream()
+                .filter(e -> examIds.contains(e.getId()))
+                .collect(Collectors.toList());
+            subjects = subjectRepository.findByIsActiveTrueAndUpdatedAtAfterOrderByUpdatedAtAsc(since)
+                .stream()
+                .filter(s -> subjectIds.contains(s.getId()))
+                .collect(Collectors.toList());
+            chapters = chapterRepository.findByIsActiveTrueAndUpdatedAtAfterOrderByUpdatedAtAsc(since)
+                .stream()
+                .filter(c -> subjectIds.contains(c.getSubject().getId()))
+                .collect(Collectors.toList());
+            topics = topicRepository.findByIsActiveTrueAndUpdatedAtAfterOrderByUpdatedAtAsc(since)
+                .stream()
+                .filter(t -> topicIds.contains(t.getId()))
+                .collect(Collectors.toList());
+        }
+
+        return toCatalogResponse(
+            serverTime,
+            fullSync,
+            categories,
+            exams,
+            subjects,
+            chapters,
+            topics,
+            scope.topicIds()
+        );
+    }
+
+    private ExamScopeData loadExamScopeData(List<Long> examIds) {
+        List<Exam> exams = examRepository.findActiveByIdInWithCategory(examIds);
+        if (exams.isEmpty()) {
+            return new ExamScopeData(List.of(), List.of(), List.of(), List.of(), List.of(), Set.of(), Set.of(), Set.of());
+        }
+
+        Map<Long, Subject> subjectById = new LinkedHashMap<>();
+        Map<Long, Topic> topicById = new LinkedHashMap<>();
+
+        for (Long examId : examIds) {
+            for (Subject subject : subjectRepository.findActiveByExamIdOrderByDisplayOrderAsc(examId)) {
+                subjectById.putIfAbsent(subject.getId(), subject);
+            }
+            for (Topic topic : topicRepository.findByExamId(examId)) {
+                topicById.putIfAbsent(topic.getId(), topic);
+            }
+        }
+
+        List<Long> subjectIds = new ArrayList<>(subjectById.keySet());
+        List<Chapter> chapters = subjectIds.isEmpty()
+            ? List.of()
+            : chapterRepository.findBySubjectIdInAndIsActiveTrueOrderByOrderIndexAsc(subjectIds);
+
+        Set<Long> categoryIds = exams.stream()
+            .map(e -> e.getCategory().getId())
+            .collect(Collectors.toCollection(LinkedHashSet::new));
+        List<ExamCategory> categories = categoryRepository.findAllById(categoryIds).stream()
+            .filter(c -> Boolean.TRUE.equals(c.getIsActive()))
+            .sorted(Comparator.comparing(ExamCategory::getDisplayOrder).thenComparing(ExamCategory::getName))
+            .collect(Collectors.toList());
+
+        return new ExamScopeData(
+            exams,
+            categories,
+            new ArrayList<>(subjectById.values()),
+            chapters,
+            new ArrayList<>(topicById.values()),
+            new LinkedHashSet<>(subjectIds),
+            new LinkedHashSet<>(topicById.keySet()),
+            categoryIds
+        );
+    }
+
+    private SyncCatalogResponse toCatalogResponse(
+        LocalDateTime serverTime,
+        boolean fullSync,
+        List<ExamCategory> categories,
+        List<Exam> exams,
+        List<Subject> subjects,
+        List<Chapter> chapters,
+        List<Topic> topics,
+        Set<Long> scopedTopicIds
+    ) {
+        List<Long> mockTestTopicIds = resolveMockTestTopicIds(scopedTopicIds);
 
         return SyncCatalogResponse.builder()
             .serverTime(serverTime)
@@ -76,17 +207,37 @@ public class SyncService {
             .build();
     }
 
-    private List<Long> resolveMockTestTopicIds() {
-        return topicTestConfigRepository.findByIsActiveTrue().stream()
-            .filter(config -> {
-                Long topicId = config.getTopic().getId();
-                long available = questionRepository.countByTopicIdAndIsActiveTrue(topicId);
-                return available >= config.getNumQuestions();
-            })
-            .map(config -> config.getTopic().getId())
+    private List<Long> resolveMockTestTopicIds(Set<Long> scopedTopicIds) {
+        List<Long> ready = questionRepository.findReadyMockTestTopicIds();
+        if (scopedTopicIds == null || scopedTopicIds.isEmpty()) {
+            return ready;
+        }
+        return ready.stream()
+            .filter(scopedTopicIds::contains)
+            .collect(Collectors.toList());
+    }
+
+    private static List<Long> normalizeExamIds(List<Long> examIds) {
+        if (examIds == null || examIds.isEmpty()) {
+            return List.of();
+        }
+        return examIds.stream()
+            .filter(Objects::nonNull)
+            .distinct()
             .sorted()
             .collect(Collectors.toList());
     }
+
+    private record ExamScopeData(
+        List<Exam> exams,
+        List<ExamCategory> categories,
+        List<Subject> subjects,
+        List<Chapter> chapters,
+        List<Topic> topics,
+        Set<Long> subjectIds,
+        Set<Long> topicIds,
+        Set<Long> categoryIds
+    ) {}
 
     @Transactional(readOnly = true)
     public SyncBundleResponse getBundleSync(Long userId, LocalDateTime since) {

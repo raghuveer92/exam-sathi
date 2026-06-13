@@ -1,5 +1,6 @@
 package com.examsaathi.service;
 
+import com.examsaathi.config.CacheNames;
 import com.examsaathi.dto.request.SubjectRequest;
 import com.examsaathi.dto.request.CloneSubjectRequest;
 import com.examsaathi.dto.response.SubjectResponse;
@@ -11,6 +12,7 @@ import com.examsaathi.repository.ExamRepository;
 import com.examsaathi.repository.ExamSubjectRepository;
 import com.examsaathi.repository.SubjectRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,8 +29,10 @@ public class SubjectService {
     private final ExamSubjectRepository examSubjectRepository;
     private final ExamSubjectGroupService examSubjectGroupService;
     private final UserMapper mapper;
+    private final CacheEvictionService cacheEvictionService;
 
     @Transactional(readOnly = true)
+    @Cacheable(value = CacheNames.SUBJECTS_BY_EXAM, key = "'exam_' + #examId")
     public List<SubjectResponse> getSubjectsByExam(Long examId) {
         return examSubjectGroupService.getAllGroupedSubjects(examId).stream()
             .map(resolved -> examSubjectGroupService.toSubjectResponse(resolved, false))
@@ -36,6 +40,7 @@ public class SubjectService {
     }
 
     @Transactional(readOnly = true)
+    @Cacheable(value = CacheNames.SUBJECTS, key = "'subject_' + #id")
     public SubjectResponse getSubjectById(Long id) {
         Subject subject = subjectRepository.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException("Subject", id));
@@ -80,11 +85,13 @@ public class SubjectService {
         ExamSubject savedExamSubject = examSubjectRepository.save(examSubject);
         examSubjectGroupService.assignSubjectToGroup(exam.getId(), savedSubject.getId(), request.getGroupId());
 
-        return examSubjectGroupService.getAllGroupedSubjects(exam.getId()).stream()
+        SubjectResponse response = examSubjectGroupService.getAllGroupedSubjects(exam.getId()).stream()
             .filter(resolved -> resolved.examSubject().getId().equals(savedExamSubject.getId()))
             .findFirst()
             .map(resolved -> examSubjectGroupService.toSubjectResponse(resolved, false))
             .orElseGet(() -> mapper.toSubjectResponse(savedExamSubject, false));
+        cacheEvictionService.evictCatalogData();
+        return response;
     }
 
     @Transactional
@@ -113,11 +120,13 @@ public class SubjectService {
         subjectRepository.save(subject);
         ExamSubject savedExamSubject = examSubjectRepository.save(examSubject);
         examSubjectGroupService.assignSubjectToGroup(request.getExamId(), subject.getId(), request.getGroupId());
-        return examSubjectGroupService.getAllGroupedSubjects(request.getExamId()).stream()
+        SubjectResponse response = examSubjectGroupService.getAllGroupedSubjects(request.getExamId()).stream()
             .filter(resolved -> resolved.examSubject().getId().equals(savedExamSubject.getId()))
             .findFirst()
             .map(resolved -> examSubjectGroupService.toSubjectResponse(resolved, false))
             .orElseGet(() -> mapper.toSubjectResponse(savedExamSubject, false));
+        cacheEvictionService.evictCatalogData();
+        return response;
     }
 
     @Transactional
@@ -134,6 +143,7 @@ public class SubjectService {
         if (examSubjectRepository.countBySubjectId(subject.getId()) == 0) {
             subjectRepository.delete(subject);
         }
+        cacheEvictionService.evictCatalogData();
     }
 
     @Transactional
@@ -153,11 +163,13 @@ public class SubjectService {
 
         ExamSubject savedExamSubject = examSubjectRepository.save(examSubject);
         examSubjectGroupService.assignSubjectToGroup(targetExam.getId(), sourceSubject.getId(), request.getGroupId());
-        return examSubjectGroupService.getAllGroupedSubjects(targetExam.getId()).stream()
+        SubjectResponse response = examSubjectGroupService.getAllGroupedSubjects(targetExam.getId()).stream()
             .filter(resolved -> resolved.examSubject().getId().equals(savedExamSubject.getId()))
             .findFirst()
             .map(resolved -> examSubjectGroupService.toSubjectResponse(resolved, false))
             .orElseGet(() -> mapper.toSubjectResponse(savedExamSubject, false));
+        cacheEvictionService.evictCatalogData();
+        return response;
     }
 
     private String normalize(String value) {
