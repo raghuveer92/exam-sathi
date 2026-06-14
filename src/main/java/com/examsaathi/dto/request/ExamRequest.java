@@ -40,5 +40,11 @@ public class ExamRequest {
     @Size(max = 10)
     private String colorCode;
 
+    @Size(max = 500)
+    private String sheetUrl;
+
+    @Size(max = 100)
+    private String sheetId;
+
     private Boolean isActive = true;
 }

@@ -87,6 +87,16 @@ public class CacheEvictionService {
         log.debug("Evicted mock test info for topicId={}", topicId);
     }
 
+    @CacheEvict(value = CacheNames.SHEET_QUESTIONS, key = "#sheetId")
+    public void evictSheetQuestions(String sheetId) {
+        log.debug("Evicted sheet questions cache for sheetId={}", sheetId);
+    }
+
+    @CacheEvict(value = CacheNames.SHEET_QUESTIONS, allEntries = true)
+    public void evictAllSheetQuestions() {
+        log.debug("Evicted all sheet question caches");
+    }
+
     public void clearAllCaches() {
         for (String name : CacheNames.ALL_CACHES) {
             Cache cache = cacheManager.getCache(name);

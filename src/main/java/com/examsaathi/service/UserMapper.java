@@ -125,6 +125,8 @@ public class UserMapper {
             .iconUrl(exam.getIconUrl())
             .colorCode(exam.getColorCode())
             .isActive(exam.getIsActive())
+            .sheetUrl(exam.getSheetUrl())
+            .sheetId(exam.getSheetId())
             .subjectCount(activeExamSubjects.size())
             .createdAt(exam.getCreatedAt())
             .updatedAt(exam.getUpdatedAt())

@@ -28,9 +28,12 @@ public interface TestAttemptAnswerRepository extends JpaRepository<TestAttemptAn
 
     boolean existsByQuestionId(Long questionId);
 
+        @Query("SELECT a FROM TestAttemptAnswer a WHERE a.attempt.id = :attemptId ORDER BY a.id ASC")
+    List<TestAttemptAnswer> findByAttemptId(@Param("attemptId") Long attemptId);
+
     @Query("""
         SELECT a FROM TestAttemptAnswer a
-        JOIN FETCH a.question q
+        LEFT JOIN FETCH a.question q
         LEFT JOIN FETCH q.options
         WHERE a.attempt.id = :attemptId
         ORDER BY a.id ASC

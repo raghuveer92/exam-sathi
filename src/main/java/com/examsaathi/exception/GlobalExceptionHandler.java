@@ -26,6 +26,23 @@ public class GlobalExceptionHandler {
             .body(ApiResponse.error(ex.getMessage()));
     }
 
+    @ExceptionHandler(GoogleSheetsException.class)
+    public ResponseEntity<ApiResponse<Void>> handleGoogleSheets(GoogleSheetsException ex) {
+        HttpStatus status = switch (ex.getErrorCode()) {
+            case SHEET_NOT_CONFIGURED, SHEET_INVALID_FORMAT, TOPIC_EMPTY, INSUFFICIENT_QUESTIONS ->
+                HttpStatus.BAD_REQUEST;
+            case SHEET_ACCESS_FAILED, CACHE_FAILURE ->
+                HttpStatus.SERVICE_UNAVAILABLE;
+            case SHEET_EMPTY ->
+                HttpStatus.BAD_REQUEST;
+        };
+        if (status == HttpStatus.SERVICE_UNAVAILABLE) {
+            log.warn("Google Sheets error [{}]: {}", ex.getErrorCode(), ex.getMessage());
+        }
+        return ResponseEntity.status(status)
+            .body(ApiResponse.error(ex.getErrorCode().name() + ": " + ex.getMessage()));
+    }
+
     @ExceptionHandler(BadRequestException.class)
     public ResponseEntity<ApiResponse<Void>> handleBadRequest(BadRequestException ex) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)

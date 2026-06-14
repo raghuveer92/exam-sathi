@@ -16,6 +16,11 @@ public class StudyProgressSyncItem {
     private Double actualHours;
     private String status;
     private String notes;
+    private String testStatus;
+    private Double lastTestScore;
+    private Double bestTestScore;
+    private Double masteryScore;
+    private Integer totalTestsAttempted;
     private LocalDateTime completedAt;
     private LocalDateTime lastStudiedAt;
     private LocalDateTime updatedAt;

@@ -9,7 +9,9 @@ import java.util.List;
 @Builder
 public class TestQuestionResponse {
     private Long questionId;
+    private String sheetQuestionId;
     private String questionText;
+    private String questionTextHi;
     private String questionType;
     private Double marks;
     private Double negativeMarks;

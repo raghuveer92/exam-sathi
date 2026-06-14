@@ -20,5 +20,7 @@ public class TopicTestConfigResponse {
     private String difficultyFilter;
     private Boolean isActive;
     private Long availableQuestionCount;
+    private Boolean canStart;
+    private Boolean sheetBacked;
     private LocalDateTime createdAt;
 }

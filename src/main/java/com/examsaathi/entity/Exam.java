@@ -77,6 +77,14 @@ public class Exam {
     @Builder.Default
     private Boolean isActive = true;
 
+    /** Google Sheets URL for topic mock test questions */
+    @Column(name = "sheet_url", length = 500)
+    private String sheetUrl;
+
+    /** Google Sheets document ID (extracted from sheet_url or set directly) */
+    @Column(name = "sheet_id", length = 100)
+    private String sheetId;
+
     @OneToMany(mappedBy = "exam", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private List<ExamSubject> examSubjects = new ArrayList<>();

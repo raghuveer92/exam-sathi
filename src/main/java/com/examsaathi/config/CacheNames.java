@@ -25,6 +25,8 @@ public final class CacheNames {
     public static final String MOCK_TEST_INFO = "mockTestInfo";
     public static final String TOPIC_TEST_CONFIG = "topicTestConfig";
     public static final String EXAM_SUBJECT_GROUPS = "examSubjectGroups";
+    /** TTL: 15 minutes — Google Sheets question cache */
+    public static final String SHEET_QUESTIONS = "sheetQuestions";
 
     /** TTL: 5 minutes */
     public static final String DASHBOARD = "dashboard";
@@ -44,6 +46,7 @@ public final class CacheNames {
         EXAMS, EXAM_LIST, SUBJECTS_BY_EXAM, SUBJECTS, CHAPTERS_BY_SUBJECT, CHAPTERS,
         TOPICS_BY_CHAPTER, TOPICS_BY_EXAM, TOPICS, EXAM_CATALOG, EXAM_CATEGORIES,
         SYNC_CATALOG, SYNC_BUNDLE, SUBJECT_PROGRESS, MOCK_TEST_INFO, TOPIC_TEST_CONFIG, EXAM_SUBJECT_GROUPS,
+        SHEET_QUESTIONS,
         DASHBOARD, LEADERBOARD, ANALYTICS, CURRENT_AFFAIRS
     };
 }

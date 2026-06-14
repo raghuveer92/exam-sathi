@@ -13,6 +13,7 @@ import com.examsaathi.dto.response.TopicResponse;
 import com.examsaathi.entity.*;
 import com.examsaathi.config.CacheNames;
 import com.examsaathi.util.GroupedCountHelper;
+import com.examsaathi.util.MockTestMasteryUtil;
 import com.examsaathi.exception.BadRequestException;
 import com.examsaathi.exception.ResourceNotFoundException;
 import com.examsaathi.repository.*;
@@ -243,6 +244,14 @@ public class StudyProgressService {
                     ? sp.getStatus().name() : "NOT_STARTED";
                 LocalDateTime completedAt = (sp != null) ? sp.getCompletedAt() : null;
                 LocalDateTime lastStudiedAt = (sp != null) ? sp.getLastStudiedAt() : null;
+                Integer totalTestsAttempted = sp != null ? sp.getTotalTestsAttempted() : 0;
+                Double masteryScore = sp != null ? sp.getMasteryScore() : null;
+                String masteryLevel = masteryScore != null
+                    ? MockTestMasteryUtil.resolveMasteryLevel(masteryScore).name()
+                    : null;
+                String testStatus = (sp != null && sp.getTestStatus() != null)
+                    ? sp.getTestStatus().name()
+                    : StudyProgress.TestStatus.LOCKED.name();
 
                 topicResponses.add(TopicResponse.builder()
                     .id(topic.getId())
@@ -259,6 +268,10 @@ public class StudyProgressService {
                     .status(statusStr)
                     .completedAt(completedAt)
                     .lastStudiedAt(lastStudiedAt)
+                    .totalTestsAttempted(totalTestsAttempted)
+                    .masteryScore(masteryScore)
+                    .masteryLevel(masteryLevel)
+                    .testStatus(testStatus)
                     .build());
             }
 
@@ -424,7 +437,26 @@ public class StudyProgressService {
         } else {
             progress.setStatus(StudyProgress.TopicStatus.NOT_STARTED);
         }
+        syncTestStatus(progress);
         return 0;
+    }
+
+    private void syncTestStatus(StudyProgress progress) {
+        if (isTopicStudiedForMock(progress)
+            && progress.getTestStatus() == StudyProgress.TestStatus.LOCKED) {
+            progress.setTestStatus(StudyProgress.TestStatus.AVAILABLE);
+        }
+    }
+
+    private boolean isTopicStudiedForMock(StudyProgress progress) {
+        if (Boolean.TRUE.equals(progress.getIsCompleted())) {
+            return true;
+        }
+        if (progress.getStatus() == StudyProgress.TopicStatus.IN_PROGRESS
+            || progress.getStatus() == StudyProgress.TopicStatus.COMPLETED) {
+            return true;
+        }
+        return progress.getActualHours() != null && progress.getActualHours() > 0;
     }
 
     private void ensureTopicBelongsToExam(UserExam userExam, Long subjectId) {

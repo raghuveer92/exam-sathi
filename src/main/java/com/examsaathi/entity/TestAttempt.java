@@ -18,6 +18,8 @@ public class TestAttempt {
 
     public enum AttemptStatus { IN_PROGRESS, SUBMITTED, TIMED_OUT }
 
+    public enum MasteryLevel { BEGINNER, DEVELOPING, PROFICIENT, MASTERED }
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -79,6 +81,36 @@ public class TestAttempt {
     @Column(nullable = false)
     @Builder.Default
     private Double percentage = 0.0;
+
+    @Column(nullable = false)
+    @Builder.Default
+    private Double accuracy = 0.0;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "mastery_level", length = 20)
+    private MasteryLevel masteryLevel;
+
+    @Column(name = "question_count", nullable = false)
+    @Builder.Default
+    private Integer questionCount = 0;
+
+    @Column(name = "wrong_count", nullable = false)
+    @Builder.Default
+    private Integer wrongCount = 0;
+
+    @Column(name = "unanswered_count", nullable = false)
+    @Builder.Default
+    private Integer unansweredCount = 0;
+
+    @Column(name = "previous_attempt_id")
+    private Long previousAttemptId;
+
+    @Column(name = "previous_percentage")
+    private Double previousPercentage;
+
+    /** Percentage change vs previous attempt (positive = improvement) */
+    @Column(name = "improvement_score")
+    private Double improvementScore;
 
     @OneToMany(mappedBy = "attempt", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default

@@ -96,3 +96,7 @@ logging:
 app:
   cache:
     warmup-enabled: true
+  google-sheets:
+    min-questions-per-topic: 1
+    connect-timeout-ms: 10000
+    read-timeout-ms: 30000

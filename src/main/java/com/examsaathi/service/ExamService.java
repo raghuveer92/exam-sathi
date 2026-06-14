@@ -106,6 +106,8 @@ public class ExamService {
         exam.setIconUrl(request.getIconUrl());
         exam.setColorCode(request.getColorCode());
         if (request.getIsActive() != null) exam.setIsActive(request.getIsActive());
+        exam.setSheetUrl(request.getSheetUrl());
+        exam.setSheetId(request.getSheetId());
     }
 
     private ExamCategory resolveCategory(Long categoryId) {

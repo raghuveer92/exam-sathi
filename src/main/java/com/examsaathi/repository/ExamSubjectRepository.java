@@ -21,6 +21,14 @@ public interface ExamSubjectRepository extends JpaRepository<ExamSubject, Long> 
 
     List<ExamSubject> findBySubjectIdOrderByDisplayOrderAsc(Long subjectId);
 
+    @Query("""
+        SELECT es FROM ExamSubject es
+        JOIN FETCH es.exam
+        WHERE es.subject.id = :subjectId
+        ORDER BY es.displayOrder ASC
+        """)
+    List<ExamSubject> findBySubjectIdWithExamOrderByDisplayOrderAsc(@Param("subjectId") Long subjectId);
+
     Optional<ExamSubject> findByExamIdAndSubjectId(Long examId, Long subjectId);
 
     int countByExamIdAndIsActiveTrue(Long examId);

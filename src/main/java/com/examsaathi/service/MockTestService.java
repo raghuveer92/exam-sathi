@@ -17,6 +17,10 @@ import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
+/**
+ * Student topic-wise mock tests (legacy DB question bank).
+ * Google Sheets topic mocks are handled by {@link TopicMockTestService}.
+ */
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -164,6 +168,7 @@ public class MockTestService {
 
         TestAttemptResponse response = toCompletedResponse(attemptRepository.save(attempt), true);
         cacheEvictionService.evictDashboard(userId);
+        cacheEvictionService.evictSyncBundle(userId);
         cacheEvictionService.evictLeaderboardAndAnalytics();
         return response;
     }

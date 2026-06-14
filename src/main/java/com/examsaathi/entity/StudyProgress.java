@@ -27,6 +27,9 @@ public class StudyProgress {
 
     public enum TopicStatus { NOT_STARTED, IN_PROGRESS, COMPLETED }
 
+    /** Mock test availability / completion for this topic */
+    public enum TestStatus { LOCKED, AVAILABLE, COMPLETED }
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -65,6 +68,24 @@ public class StudyProgress {
     /** Optional personal notes by the student */
     @Column(length = 1000)
     private String notes;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "test_status", length = 20)
+    @Builder.Default
+    private TestStatus testStatus = TestStatus.LOCKED;
+
+    @Column(name = "last_test_score")
+    private Double lastTestScore;
+
+    @Column(name = "best_test_score")
+    private Double bestTestScore;
+
+    @Column(name = "mastery_score")
+    private Double masteryScore;
+
+    @Column(name = "total_tests_attempted", nullable = false)
+    @Builder.Default
+    private Integer totalTestsAttempted = 0;
 
     @CreatedDate
     @Column(nullable = false, updatable = false)

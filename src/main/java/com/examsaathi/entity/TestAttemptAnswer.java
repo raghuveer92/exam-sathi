@@ -6,10 +6,7 @@ import lombok.*;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(
-    name = "test_attempt_answers",
-    uniqueConstraints = @UniqueConstraint(columnNames = {"attempt_id", "question_id"})
-)
+@Table(name = "test_attempt_answers")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -25,9 +22,18 @@ public class TestAttemptAnswer {
     @JoinColumn(name = "attempt_id", nullable = false)
     private TestAttempt attempt;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "question_id", nullable = false)
+    /** Legacy DB question reference — nullable for sheet-based attempts */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "question_id")
     private Question question;
+
+    /** Sheet row id from Google Sheets (e.g. column "id") */
+    @Column(name = "sheet_question_id", length = 50)
+    private String sheetQuestionId;
+
+    /** Frozen question payload at attempt time for historical review */
+    @Column(name = "question_snapshot", columnDefinition = "TEXT")
+    private String questionSnapshot;
 
     /** Comma-separated option keys e.g. A,C */
     @Column(name = "selected_option_keys", length = 100)

@@ -23,6 +23,9 @@ public interface TestAttemptRepository extends JpaRepository<TestAttempt, Long> 
 
     List<TestAttempt> findByUserIdAndTopicIdOrderByStartedAtDesc(Long userId, Long topicId);
 
+    List<TestAttempt> findByUserIdAndTopicIdAndStatusNotOrderBySubmittedAtDesc(
+        Long userId, Long topicId, TestAttempt.AttemptStatus status, org.springframework.data.domain.Pageable pageable);
+
     List<TestAttempt> findByUserIdAndStatusOrderBySubmittedAtDesc(
         Long userId, TestAttempt.AttemptStatus status);
 

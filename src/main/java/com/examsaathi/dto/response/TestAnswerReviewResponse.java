@@ -9,6 +9,7 @@ import java.util.List;
 @Builder
 public class TestAnswerReviewResponse {
     private Long questionId;
+    private String sheetQuestionId;
     private String questionText;
     private String questionType;
     private List<String> selectedOptionKeys;

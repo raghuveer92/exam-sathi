@@ -24,4 +24,10 @@ public class TopicResponse {
     private java.time.LocalDateTime completedAt;
     private java.time.LocalDateTime lastStudiedAt;
     private java.time.LocalDateTime updatedAt;
+    /** Mock test / mastery (populated for student subject detail) */
+    private Integer totalTestsAttempted;
+    private Double masteryScore;
+    /** BEGINNER | DEVELOPING | PROFICIENT | MASTERED */
+    private String masteryLevel;
+    private String testStatus;
 }

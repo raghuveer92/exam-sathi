@@ -18,6 +18,7 @@ public class CacheConfig {
 
     private static final int DEFAULT_MAX_SIZE = 10_000;
     private static final int DEFAULT_TTL_MINUTES = 30;
+    private static final int SHEET_QUESTIONS_TTL_MINUTES = 15;
     private static final int LONG_TTL_HOURS = 6;
     private static final int SHORT_TTL_MINUTES = 5;
     private static final int CURRENT_AFFAIRS_TTL_HOURS = 24;
@@ -50,6 +51,8 @@ public class CacheConfig {
                 builder.expireAfterWrite(SHORT_TTL_MINUTES, TimeUnit.MINUTES);
             case CacheNames.CURRENT_AFFAIRS ->
                 builder.expireAfterWrite(CURRENT_AFFAIRS_TTL_HOURS, TimeUnit.HOURS);
+            case CacheNames.SHEET_QUESTIONS ->
+                builder.expireAfterWrite(SHEET_QUESTIONS_TTL_MINUTES, TimeUnit.MINUTES);
             default ->
                 builder.expireAfterWrite(DEFAULT_TTL_MINUTES, TimeUnit.MINUTES);
         };

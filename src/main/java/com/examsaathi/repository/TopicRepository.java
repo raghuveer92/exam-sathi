@@ -20,6 +20,18 @@ public interface TopicRepository extends JpaRepository<Topic, Long> {
     @Query("SELECT COUNT(t) FROM Topic t WHERE t.chapter.subject.id = :subjectId AND t.isActive = true")
     int countBySubjectId(@Param("subjectId") Long subjectId);
 
+    /** All topics for an exam with chapter and subject loaded */
+    @Query("""
+        SELECT DISTINCT t FROM ExamSubject es
+        JOIN es.subject s
+        JOIN s.chapters c
+        JOIN c.topics t
+        JOIN FETCH t.chapter ch
+        JOIN FETCH ch.subject
+        WHERE es.exam.id = :examId AND es.isActive = true AND s.isActive = true AND t.isActive = true
+        """)
+    List<Topic> findByExamIdWithHierarchy(@Param("examId") Long examId);
+
     /** All topics for an exam */
     @Query("SELECT DISTINCT t FROM ExamSubject es " +
            "JOIN es.subject s " +

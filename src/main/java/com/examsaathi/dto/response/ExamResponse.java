@@ -25,6 +25,8 @@ public class ExamResponse {
     private String iconUrl;
     private String colorCode;
     private Boolean isActive;
+    private String sheetUrl;
+    private String sheetId;
     private int subjectCount;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
