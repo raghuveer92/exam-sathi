@@ -18,7 +18,25 @@ public class GoogleSheetsProperties {
     private int readTimeoutMs = 30000;
 
     private List<String> requiredColumns = List.of(
-        "id", "exam", "subject", "topic", "question_en", "correct_option"
+        "id",
+        "exam",
+        "subject",
+        "topic",
+        "question_en",
+        "question_hi",
+        "optionA_en",
+        "optionA_hi",
+        "optionB_en",
+        "optionB_hi",
+        "optionC_en",
+        "optionC_hi",
+        "optionD_en",
+        "optionD_hi",
+        "correct_option",
+        "difficulty",
+        "explanation_en",
+        "explanation_hi",
+        "tags"
     );
 
     private List<String> optionalIdColumns = List.of("exam_id", "subject_id", "topic_id");

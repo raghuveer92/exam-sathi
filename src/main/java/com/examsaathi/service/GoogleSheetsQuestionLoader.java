@@ -32,6 +32,7 @@ public class GoogleSheetsQuestionLoader {
     private static final Pattern SHEET_ID_PATTERN =
         Pattern.compile("/spreadsheets/d/([a-zA-Z0-9-_]+)");
     private static final Set<String> VALID_OPTIONS = Set.of("A", "B", "C", "D");
+    private static final Set<String> VALID_DIFFICULTIES = Set.of("EASY", "MEDIUM", "HARD");
 
     private final GoogleSheetsProperties properties;
     private RestClient restClient;
@@ -102,7 +103,7 @@ public class GoogleSheetsQuestionLoader {
         return extractSheetIdFromUrl(sheetUrl);
     }
 
-    private List<SheetQuestion> parseCsv(String csv) {
+    List<SheetQuestion> parseCsv(String csv) {
         String[] lines = csv.split("\\r?\\n");
         if (lines.length < 2) {
             throw new GoogleSheetsException(
@@ -125,7 +126,7 @@ public class GoogleSheetsQuestionLoader {
                 continue;
             }
 
-            questions.add(SheetQuestion.builder()
+            SheetQuestion question = SheetQuestion.builder()
                 .id(id.trim())
                 .exam(getColumn(headers, cols, "exam"))
                 .subject(getColumn(headers, cols, "subject"))
@@ -143,12 +144,14 @@ public class GoogleSheetsQuestionLoader {
                 .optionCHi(getColumn(headers, cols, "optionC_hi"))
                 .optionDEn(getColumn(headers, cols, "optionD_en"))
                 .optionDHi(getColumn(headers, cols, "optionD_hi"))
-                .correctOption(getColumn(headers, cols, "correct_option"))
-                .difficulty(getColumn(headers, cols, "difficulty"))
+                .correctOption(normalizeUpper(getColumn(headers, cols, "correct_option")))
+                .difficulty(normalizeUpper(getColumn(headers, cols, "difficulty")))
                 .explanationEn(getColumn(headers, cols, "explanation_en"))
                 .explanationHi(getColumn(headers, cols, "explanation_hi"))
                 .tags(getColumn(headers, cols, "tags"))
-                .build());
+                .build();
+            validateQuestionRow(question, i + 1);
+            questions.add(question);
         }
 
         log.info("Parsed {} questions from Google Sheet", questions.size());
@@ -176,6 +179,53 @@ public class GoogleSheetsQuestionLoader {
             return false;
         }
         return VALID_OPTIONS.contains(option.trim().toUpperCase());
+    }
+
+    private static void validateQuestionRow(SheetQuestion question, int rowNumber) {
+        List<String> missing = new ArrayList<>();
+        requireValue(question.getExam(), "exam", missing);
+        requireValue(question.getSubject(), "subject", missing);
+        requireValue(question.getTopic(), "topic", missing);
+        requireValue(question.getQuestionEn(), "question_en", missing);
+        requireValue(question.getQuestionHi(), "question_hi", missing);
+        requireValue(question.getOptionAEn(), "optionA_en", missing);
+        requireValue(question.getOptionAHi(), "optionA_hi", missing);
+        requireValue(question.getOptionBEn(), "optionB_en", missing);
+        requireValue(question.getOptionBHi(), "optionB_hi", missing);
+        requireValue(question.getOptionCEn(), "optionC_en", missing);
+        requireValue(question.getOptionCHi(), "optionC_hi", missing);
+        requireValue(question.getOptionDEn(), "optionD_en", missing);
+        requireValue(question.getOptionDHi(), "optionD_hi", missing);
+        requireValue(question.getExplanationEn(), "explanation_en", missing);
+        requireValue(question.getExplanationHi(), "explanation_hi", missing);
+        requireValue(question.getTags(), "tags", missing);
+
+        if (!missing.isEmpty()) {
+            throw new GoogleSheetsException(
+                GoogleSheetsException.ErrorCode.SHEET_INVALID_FORMAT,
+                "Sheet row " + rowNumber + " missing required values: " + String.join(", ", missing));
+        }
+        if (!isValidCorrectOption(question.getCorrectOption())) {
+            throw new GoogleSheetsException(
+                GoogleSheetsException.ErrorCode.SHEET_INVALID_FORMAT,
+                "Sheet row " + rowNumber + " has invalid correct_option: " + question.getCorrectOption());
+        }
+        if (question.getDifficulty() == null
+            || !VALID_DIFFICULTIES.contains(question.getDifficulty().trim().toUpperCase())) {
+            throw new GoogleSheetsException(
+                GoogleSheetsException.ErrorCode.SHEET_INVALID_FORMAT,
+                "Sheet row " + rowNumber + " has invalid difficulty: " + question.getDifficulty());
+        }
+    }
+
+    private static void requireValue(String value, String column, List<String> missing) {
+        if (value == null || value.isBlank()) {
+            missing.add(column);
+        }
+    }
+
+    private static String normalizeUpper(String value) {
+        return value == null ? null : value.trim().toUpperCase();
     }
 
     private static String getColumn(List<String> headers, List<String> cols, String name) {
