@@ -1,17 +1,24 @@
 package com.examsaathi.service;
 
+import com.examsaathi.dto.request.BulkProgressUpdateRequest;
+import com.examsaathi.dto.request.BulkTopicProgressItem;
 import com.examsaathi.dto.request.StudyLogRequest;
 import com.examsaathi.dto.request.ProgressUpdateRequest;
+import com.examsaathi.dto.response.BulkProgressUpdateResponse;
 import com.examsaathi.dto.response.ChapterWithProgressResponse;
 import com.examsaathi.dto.response.DailyStudyLogResponse;
 import com.examsaathi.dto.response.SubjectDetailResponse;
 import com.examsaathi.dto.response.SubjectProgressResponse;
 import com.examsaathi.dto.response.TopicResponse;
 import com.examsaathi.entity.*;
+import com.examsaathi.config.CacheNames;
+import com.examsaathi.util.GroupedCountHelper;
+import com.examsaathi.exception.BadRequestException;
 import com.examsaathi.exception.ResourceNotFoundException;
 import com.examsaathi.repository.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -55,28 +62,93 @@ public class StudyProgressService {
                 return StudyProgress.builder().user(user).userExam(activeUserExam).topic(topic).build();
             });
 
-        boolean wasCompleted = Boolean.TRUE.equals(progress.getIsCompleted());
-        progress.setIsCompleted(request.getIsCompleted());
-        progress.setActualHours(request.getActualHours());
-        progress.setNotes(request.getNotes());
-
-        // Derive and set topic status
-        if (Boolean.TRUE.equals(request.getIsCompleted())) {
-            progress.setStatus(StudyProgress.TopicStatus.COMPLETED);
-            if (!wasCompleted) {
-                progress.setCompletedAt(LocalDateTime.now());
-                updateDailyLogTopicCount(userId, LocalDate.now(), activeUserExam.getExam().getId());
-            }
-        } else if (request.getActualHours() != null && request.getActualHours() > 0) {
-            progress.setStatus(StudyProgress.TopicStatus.IN_PROGRESS);
-            progress.setLastStudiedAt(LocalDateTime.now());
-        } else {
-            progress.setStatus(StudyProgress.TopicStatus.NOT_STARTED);
-        }
+        int newlyCompleted = applyTopicProgressFields(
+            progress,
+            request.getIsCompleted(),
+            request.getActualHours(),
+            request.getNotes());
 
         progressRepository.save(progress);
+
+        if (newlyCompleted > 0) {
+            updateDailyLogTopicCount(userId, LocalDate.now(), activeUserExam.getExam().getId(), newlyCompleted);
+        }
         updateStreak(userId);
-        cacheEvictionService.evictDashboard(userId);
+        cacheEvictionService.evictUserSyncData(userId, activeUserExam.getExam().getId());
+    }
+
+    /**
+     * Atomically update many topics for one enrollment. Validates every topic before writing;
+     * rolls back the whole batch on any error.
+     */
+    @Transactional
+    public BulkProgressUpdateResponse bulkUpdateProgress(Long userId, BulkProgressUpdateRequest request) {
+        UserExam userExam = resolveUserExam(userId, request.getUserExamId(), request.getExamId());
+        User user = userRepository.findById(userId).orElseThrow();
+        Long examId = userExam.getExam().getId();
+
+        Map<Long, BulkTopicProgressItem> byTopicId = new LinkedHashMap<>();
+        for (BulkTopicProgressItem item : request.getTopics()) {
+            byTopicId.put(item.getTopicId(), item);
+        }
+        List<Long> topicIds = new ArrayList<>(byTopicId.keySet());
+
+        Map<Long, Topic> topicsById = topicRepository.findAllById(topicIds).stream()
+            .collect(Collectors.toMap(Topic::getId, t -> t));
+        if (topicsById.size() != topicIds.size()) {
+            List<Long> missing = topicIds.stream()
+                .filter(id -> !topicsById.containsKey(id))
+                .collect(Collectors.toList());
+            throw new BadRequestException("Unknown topic IDs: " + missing);
+        }
+
+        for (Long topicId : topicIds) {
+            Topic topic = topicsById.get(topicId);
+            ensureTopicBelongsToExam(userExam, topic.getChapter().getSubject().getId());
+        }
+
+        Map<Long, StudyProgress> existingByTopicId = progressRepository
+            .findByUserExamIdAndTopicIdIn(userExam.getId(), topicIds)
+            .stream()
+            .collect(Collectors.toMap(sp -> sp.getTopic().getId(), sp -> sp));
+
+        int updatedCount = 0;
+        int newlyCompleted = 0;
+        List<StudyProgress> toSave = new ArrayList<>(byTopicId.size());
+
+        for (BulkTopicProgressItem item : byTopicId.values()) {
+            Topic topic = topicsById.get(item.getTopicId());
+            StudyProgress progress = existingByTopicId.get(item.getTopicId());
+            if (progress == null) {
+                progress = StudyProgress.builder()
+                    .user(user)
+                    .userExam(userExam)
+                    .topic(topic)
+                    .build();
+            }
+
+            newlyCompleted += applyTopicProgressFields(
+                progress,
+                item.getIsCompleted(),
+                item.getActualHours(),
+                item.getNotes());
+            toSave.add(progress);
+            updatedCount++;
+        }
+
+        progressRepository.saveAll(toSave);
+
+        if (newlyCompleted > 0) {
+            updateDailyLogTopicCount(userId, LocalDate.now(), examId, newlyCompleted);
+        }
+        updateStreak(userId);
+        cacheEvictionService.evictUserSyncData(userId, examId);
+
+        return BulkProgressUpdateResponse.builder()
+            .updatedCount(updatedCount)
+            .newlyCompletedCount(newlyCompleted)
+            .subjectProgress(getSubjectProgress(userId, examId))
+            .build();
     }
 
     /** Add or update daily study log */
@@ -106,7 +178,7 @@ public class StudyProgressService {
         updateStreak(userId);
 
         DailyStudyLogResponse response = mapper.toDailyLogResponse(log);
-        cacheEvictionService.evictDashboard(userId);
+        cacheEvictionService.evictUserSyncData(userId, activeExamId);
         return response;
     }
 
@@ -224,36 +296,88 @@ public class StudyProgressService {
             .build();
     }
 
-    /** Get subject-wise progress for a student */
+    /** Get subject-wise progress for a student (cached per user + exam). */
+    @Transactional(readOnly = true)
+    @Cacheable(
+        value = CacheNames.SUBJECT_PROGRESS,
+        key = "T(com.examsaathi.config.CacheKeyBuilder).subjectProgress(#userId, #examId)"
+    )
     public List<SubjectProgressResponse> getSubjectProgress(Long userId, Long examId) {
         UserExam userExam = userExamRepository.findByUserIdAndExamId(userId, examId)
             .orElseThrow(() -> new IllegalStateException("Exam is not linked to this user"));
-        return examSubjectGroupService.resolveVisibleSubjects(userExam)
-            .stream()
-            .map(es -> buildSubjectProgress(userId, examId, es))
+        return buildSubjectProgressList(userId, examId, userExam);
+    }
+
+    @Transactional(readOnly = true)
+    public List<SubjectProgressResponse> buildSubjectProgressList(Long userId, Long examId, UserExam userExam) {
+        List<ExamSubjectGroupService.ResolvedExamSubject> resolvedSubjects =
+            examSubjectGroupService.resolveVisibleSubjects(userExam);
+        return buildSubjectProgressBatch(userId, examId, resolvedSubjects);
+    }
+
+    @Transactional(readOnly = true)
+    public Map<Long, List<SubjectProgressResponse>> getSubjectProgressByExams(Long userId, List<UserExam> userExams) {
+        Map<Long, List<SubjectProgressResponse>> progressByExam = new LinkedHashMap<>();
+        for (UserExam userExam : userExams) {
+            Long examId = userExam.getExam().getId();
+            progressByExam.put(examId, buildSubjectProgressList(userId, examId, userExam));
+        }
+        return progressByExam;
+    }
+
+    private List<SubjectProgressResponse> buildSubjectProgressBatch(
+            Long userId,
+            Long examId,
+            List<ExamSubjectGroupService.ResolvedExamSubject> resolvedSubjects) {
+        if (resolvedSubjects.isEmpty()) {
+            return List.of();
+        }
+
+        List<Long> subjectIds = resolvedSubjects.stream()
+            .map(resolved -> resolved.examSubject().getSubject().getId())
+            .distinct()
+            .toList();
+
+        Map<Long, Integer> topicCounts = GroupedCountHelper.toIntMap(
+            topicRepository.countActiveTopicsGroupedBySubjectId(subjectIds));
+        Map<Long, Double> estimatedHours = GroupedCountHelper.toDoubleMap(
+            topicRepository.sumEstimatedHoursGroupedBySubjectId(subjectIds));
+        Map<Long, Integer> completedCounts = GroupedCountHelper.toIntMap(
+            progressRepository.countCompletedGroupedBySubjectId(userId, examId, subjectIds));
+
+        return resolvedSubjects.stream()
+            .map(resolved -> toSubjectProgressResponse(
+                resolved,
+                topicCounts,
+                completedCounts,
+                estimatedHours))
             .collect(Collectors.toList());
     }
 
-    private SubjectProgressResponse buildSubjectProgress(Long userId, Long examId, ExamSubjectGroupService.ResolvedExamSubject resolvedSubject) {
+    private SubjectProgressResponse toSubjectProgressResponse(
+            ExamSubjectGroupService.ResolvedExamSubject resolvedSubject,
+            Map<Long, Integer> topicCounts,
+            Map<Long, Integer> completedCounts,
+            Map<Long, Double> estimatedHours) {
         ExamSubject examSubject = resolvedSubject.examSubject();
         Subject subject = examSubject.getSubject();
-        int totalTopics = topicRepository.countBySubjectId(subject.getId());
-        int completed = progressRepository.countCompletedByUserAndExamAndSubject(userId, examId, subject.getId());
+        Long subjectId = subject.getId();
+        int totalTopics = topicCounts.getOrDefault(subjectId, 0);
+        int completed = completedCounts.getOrDefault(subjectId, 0);
         double percent = totalTopics > 0
             ? Math.round((completed * 100.0 / totalTopics) * 10.0) / 10.0
             : 0.0;
-        Double totalHours = topicRepository.sumEstimatedHoursBySubjectId(subject.getId());
 
         return SubjectProgressResponse.builder()
-            .subjectId(subject.getId())
+            .subjectId(subjectId)
             .subjectName(subject.getName())
             .iconName(subject.getIconName())
             .colorCode(subject.getColorCode())
-                .displayOrder(examSubject.getDisplayOrder())
+            .displayOrder(examSubject.getDisplayOrder())
             .totalTopics(totalTopics)
             .completedTopics(completed)
             .completionPercent(percent)
-            .totalEstimatedHours(totalHours != null ? totalHours : 0.0)
+            .totalEstimatedHours(estimatedHours.getOrDefault(subjectId, 0.0))
             .build();
     }
 
@@ -262,18 +386,62 @@ public class StudyProgressService {
             .orElseThrow(() -> new IllegalStateException("No active exam selected"));
     }
 
+    private UserExam resolveUserExam(Long userId, Long userExamId, Long examId) {
+        if (userExamId != null) {
+            return userExamRepository.findById(userExamId)
+                .filter(ue -> ue.getUser().getId().equals(userId))
+                .orElseThrow(() -> new ResourceNotFoundException("UserExam", userExamId));
+        }
+        if (examId != null) {
+            return userExamRepository.findByUserIdAndExamId(userId, examId)
+                .orElseThrow(() -> new BadRequestException("Exam is not linked to this user"));
+        }
+        throw new BadRequestException("userExamId or examId is required");
+    }
+
+    /** @return 1 when the topic transitioned to completed, else 0 */
+    private int applyTopicProgressFields(
+            StudyProgress progress,
+            Boolean isCompleted,
+            Double actualHours,
+            String notes) {
+        boolean wasCompleted = Boolean.TRUE.equals(progress.getIsCompleted());
+        progress.setIsCompleted(isCompleted);
+        progress.setActualHours(actualHours != null ? actualHours : 0.0);
+        if (notes != null) {
+            progress.setNotes(notes);
+        }
+
+        if (Boolean.TRUE.equals(isCompleted)) {
+            progress.setStatus(StudyProgress.TopicStatus.COMPLETED);
+            if (!wasCompleted) {
+                progress.setCompletedAt(LocalDateTime.now());
+                return 1;
+            }
+        } else if (actualHours != null && actualHours > 0) {
+            progress.setStatus(StudyProgress.TopicStatus.IN_PROGRESS);
+            progress.setLastStudiedAt(LocalDateTime.now());
+        } else {
+            progress.setStatus(StudyProgress.TopicStatus.NOT_STARTED);
+        }
+        return 0;
+    }
+
     private void ensureTopicBelongsToExam(UserExam userExam, Long subjectId) {
         if (!examSubjectGroupService.isSubjectVisible(userExam, subjectId)) {
             throw new IllegalStateException("Topic does not belong to the active exam");
         }
     }
 
-    /** Update today's daily log topic count */
-    private void updateDailyLogTopicCount(Long userId, LocalDate date, Long examId) {
+    /** Update daily log topic count (supports bulk increments). */
+    private void updateDailyLogTopicCount(Long userId, LocalDate date, Long examId, int count) {
+        if (count <= 0) {
+            return;
+        }
         User user = userRepository.findById(userId).orElseThrow();
         Exam examRef = Exam.builder().id(examId).build();
         DailyStudyLog log = findOrCreateDailyLog(user, examRef, date);
-        log.setTopicsCompleted((log.getTopicsCompleted() != null ? log.getTopicsCompleted() : 0) + 1);
+        log.setTopicsCompleted((log.getTopicsCompleted() != null ? log.getTopicsCompleted() : 0) + count);
         saveDailyLogHandlingLegacyUniqueConstraint(log);
     }
 

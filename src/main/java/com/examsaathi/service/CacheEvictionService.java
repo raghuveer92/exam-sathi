@@ -50,6 +50,25 @@ public class CacheEvictionService {
         log.debug("Evicted dashboard cache for userId={}", userId);
     }
 
+    @Caching(evict = {
+        @CacheEvict(value = CacheNames.DASHBOARD, key = "#userId"),
+        @CacheEvict(value = CacheNames.SYNC_BUNDLE, key = "T(com.examsaathi.config.CacheKeyBuilder).syncBundleFull(#userId)"),
+        @CacheEvict(value = CacheNames.SUBJECT_PROGRESS, key = "T(com.examsaathi.config.CacheKeyBuilder).subjectProgress(#userId, #examId)")
+    })
+    public void evictUserSyncData(Long userId, Long examId) {
+        log.debug("Evicted sync caches for userId={} examId={}", userId, examId);
+    }
+
+    @CacheEvict(value = CacheNames.EXAM_SUBJECT_GROUPS, key = "'userExam_' + #userExamId")
+    public void evictUserExamSubjectGroups(Long userExamId) {
+        log.debug("Evicted subject groups cache for userExamId={}", userExamId);
+    }
+
+    @CacheEvict(value = CacheNames.SYNC_BUNDLE, key = "T(com.examsaathi.config.CacheKeyBuilder).syncBundleFull(#userId)")
+    public void evictSyncBundle(Long userId) {
+        log.debug("Evicted sync bundle cache for userId={}", userId);
+    }
+
     @CacheEvict(value = CacheNames.DASHBOARD, allEntries = true)
     public void evictAllDashboards() {
         log.debug("Evicted all dashboard caches");

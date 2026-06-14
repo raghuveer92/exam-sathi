@@ -1,0 +1,9 @@
+# Local development profile — fixed OTP for automation (never enable in production).
+app:
+  otp:
+    use-fixed: true
+    fixed-value: "999999"
+
+logging:
+  level:
+    com.examsaathi: DEBUG

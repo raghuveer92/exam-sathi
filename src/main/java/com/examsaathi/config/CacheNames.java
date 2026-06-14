@@ -20,6 +20,8 @@ public final class CacheNames {
     public static final String EXAM_CATALOG = "examCatalog";
     public static final String EXAM_CATEGORIES = "examCategories";
     public static final String SYNC_CATALOG = "syncCatalog";
+    public static final String SYNC_BUNDLE = "syncBundle";
+    public static final String SUBJECT_PROGRESS = "subjectProgress";
     public static final String MOCK_TEST_INFO = "mockTestInfo";
     public static final String TOPIC_TEST_CONFIG = "topicTestConfig";
     public static final String EXAM_SUBJECT_GROUPS = "examSubjectGroups";
@@ -41,7 +43,7 @@ public final class CacheNames {
     public static final String[] ALL_CACHES = {
         EXAMS, EXAM_LIST, SUBJECTS_BY_EXAM, SUBJECTS, CHAPTERS_BY_SUBJECT, CHAPTERS,
         TOPICS_BY_CHAPTER, TOPICS_BY_EXAM, TOPICS, EXAM_CATALOG, EXAM_CATEGORIES,
-        SYNC_CATALOG, MOCK_TEST_INFO, TOPIC_TEST_CONFIG, EXAM_SUBJECT_GROUPS,
+        SYNC_CATALOG, SYNC_BUNDLE, SUBJECT_PROGRESS, MOCK_TEST_INFO, TOPIC_TEST_CONFIG, EXAM_SUBJECT_GROUPS,
         DASHBOARD, LEADERBOARD, ANALYTICS, CURRENT_AFFAIRS
     };
 }

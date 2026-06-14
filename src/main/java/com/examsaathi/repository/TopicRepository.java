@@ -47,6 +47,24 @@ public interface TopicRepository extends JpaRepository<Topic, Long> {
     @Query("SELECT COALESCE(SUM(t.estimatedHours), 0) FROM Topic t WHERE t.chapter.subject.id IN :subjectIds AND t.isActive = true")
     Double sumEstimatedHoursBySubjectIds(@Param("subjectIds") List<Long> subjectIds);
 
+    /** Active topic counts grouped by subject — replaces per-subject COUNT queries. */
+    @Query("""
+        SELECT t.chapter.subject.id, COUNT(t)
+        FROM Topic t
+        WHERE t.chapter.subject.id IN :subjectIds AND t.isActive = true
+        GROUP BY t.chapter.subject.id
+        """)
+    List<Object[]> countActiveTopicsGroupedBySubjectId(@Param("subjectIds") List<Long> subjectIds);
+
+    /** Sum estimated hours grouped by subject — replaces per-subject SUM queries. */
+    @Query("""
+        SELECT t.chapter.subject.id, COALESCE(SUM(t.estimatedHours), 0)
+        FROM Topic t
+        WHERE t.chapter.subject.id IN :subjectIds AND t.isActive = true
+        GROUP BY t.chapter.subject.id
+        """)
+    List<Object[]> sumEstimatedHoursGroupedBySubjectId(@Param("subjectIds") List<Long> subjectIds);
+
     @Query("""
         SELECT t FROM Topic t
         JOIN FETCH t.chapter c

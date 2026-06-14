@@ -45,7 +45,8 @@ public class CacheConfig {
                  CacheNames.MOCK_TEST_INFO, CacheNames.TOPIC_TEST_CONFIG,
                  CacheNames.EXAM_SUBJECT_GROUPS ->
                 builder.expireAfterWrite(LONG_TTL_HOURS, TimeUnit.HOURS);
-            case CacheNames.DASHBOARD, CacheNames.LEADERBOARD, CacheNames.ANALYTICS ->
+            case CacheNames.DASHBOARD, CacheNames.LEADERBOARD, CacheNames.ANALYTICS,
+                 CacheNames.SYNC_BUNDLE, CacheNames.SUBJECT_PROGRESS ->
                 builder.expireAfterWrite(SHORT_TTL_MINUTES, TimeUnit.MINUTES);
             case CacheNames.CURRENT_AFFAIRS ->
                 builder.expireAfterWrite(CURRENT_AFFAIRS_TTL_HOURS, TimeUnit.HOURS);

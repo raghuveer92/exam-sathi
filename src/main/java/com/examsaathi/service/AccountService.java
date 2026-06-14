@@ -12,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -82,7 +83,11 @@ public class AccountService {
             throw new BadRequestException("Password is required");
         }
 
-        authenticationManager.authenticate(
-            new UsernamePasswordAuthenticationToken(user.getEmail(), password));
+        try {
+            authenticationManager.authenticate(
+                new UsernamePasswordAuthenticationToken(user.getEmail(), password));
+        } catch (AuthenticationException ex) {
+            throw new BadRequestException("Incorrect password");
+        }
     }
 }

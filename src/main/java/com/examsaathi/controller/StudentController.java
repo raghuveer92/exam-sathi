@@ -22,6 +22,7 @@ import com.examsaathi.repository.TopicRepository;
 import com.examsaathi.repository.UserExamRepository;
 import com.examsaathi.repository.UserRepository;
 import com.examsaathi.service.AccountService;
+import com.examsaathi.service.CacheEvictionService;
 import com.examsaathi.service.DashboardService;
 import com.examsaathi.service.ExamSubjectGroupService;
 import com.examsaathi.service.UserMapper;
@@ -59,6 +60,7 @@ public class StudentController {
     private final StudyProgressRepository studyProgressRepository;
     private final ExamSubjectGroupService examSubjectGroupService;
     private final AccountService accountService;
+    private final CacheEvictionService cacheEvictionService;
 
     @GetMapping("/me")
     @Transactional
@@ -126,12 +128,13 @@ public class StudentController {
             @Valid @RequestBody UserExamCreateRequest request) {
         User user = userRepository.findByEmailWithExam(userDetails.getUsername()).orElseThrow();
         EmailVerificationGuard.requireVerifiedForExamSetup(user);
-        UserExam userExam = upsertUserExam(user, request.getExamId(), request.getExamDate(),
+        UserExam userExam = createUserExam(user, request.getExamId(), request.getExamDate(),
             request.getDailyTargetHours(), request.getExperienceLevel());
         examSubjectGroupService.saveSelections(userExam, request.getSubjectSelections());
         setActiveExam(user, userExam);
         userRepository.save(user);
-        return ResponseEntity.ok(ApiResponse.success("Exam added", userMapper.toResponse(user)));
+        User refreshedUser = userRepository.findByEmailWithExam(userDetails.getUsername()).orElseThrow();
+        return ResponseEntity.ok(ApiResponse.success("Exam added", userMapper.toResponse(refreshedUser)));
     }
 
     @PostMapping("/my-exams/enroll")
@@ -142,7 +145,7 @@ public class StudentController {
             @Valid @RequestBody EnrollExamRequest request) {
         User user = userRepository.findByEmailWithExam(userDetails.getUsername()).orElseThrow();
         EmailVerificationGuard.requireVerifiedForExamSetup(user);
-        UserExam userExam = upsertUserExam(user, request.getExamId(), request.getExamDate(),
+        UserExam userExam = createUserExam(user, request.getExamId(), request.getExamDate(),
             request.getDailyTargetHours(), request.getExperienceLevel());
 
         LocalDate syllabusDate = request.getSyllabusTargetDate() != null
@@ -163,7 +166,8 @@ public class StudentController {
         examSubjectGroupService.saveSelections(userExam, request.getSubjectSelections());
         setActiveExam(user, userExam);
         userRepository.save(user);
-        return ResponseEntity.ok(ApiResponse.success("Study plan created", userMapper.toResponse(user)));
+        User refreshedUser = userRepository.findByEmailWithExam(userDetails.getUsername()).orElseThrow();
+        return ResponseEntity.ok(ApiResponse.success("Study plan created", userMapper.toResponse(refreshedUser)));
     }
 
     @GetMapping("/exams/{examId}/subject-groups")
@@ -350,6 +354,29 @@ public class StudentController {
         return ResponseEntity.ok(ApiResponse.success("Study hours updated", userMapper.toResponse(user)));
     }
 
+    private UserExam createUserExam(User user, Long examId, LocalDate examDate,
+                                    Double dailyTargetHours, String experienceLevel) {
+        Exam exam = examRepository.findById(examId)
+            .orElseThrow(() -> new BadRequestException("Invalid exam id: " + examId));
+
+        if (userExamRepository.findByUserIdAndExamId(user.getId(), examId).isPresent()) {
+            throw new BadRequestException("You are already enrolled in this exam");
+        }
+
+        UserExam userExam = UserExam.builder()
+            .user(user)
+            .exam(exam)
+            .isActive(false)
+            .build();
+
+        applyUserExamFields(userExam, examDate, dailyTargetHours, experienceLevel);
+        userExam = userExamRepository.save(userExam);
+        user.getUserExams().add(userExam);
+        cacheEvictionService.evictSyncBundle(user.getId());
+        cacheEvictionService.evictDashboard(user.getId());
+        return userExam;
+    }
+
     private UserExam upsertUserExam(User user, Long examId, LocalDate examDate,
                                     Double dailyTargetHours, String experienceLevel) {
         Exam exam = examRepository.findById(examId)
@@ -362,6 +389,12 @@ public class StudentController {
                 .isActive(false)
                 .build());
 
+        applyUserExamFields(userExam, examDate, dailyTargetHours, experienceLevel);
+        return userExamRepository.save(userExam);
+    }
+
+    private void applyUserExamFields(UserExam userExam, LocalDate examDate,
+                                     Double dailyTargetHours, String experienceLevel) {
         if (examDate != null) {
             userExam.setExamDate(examDate);
         }
@@ -374,7 +407,6 @@ public class StudentController {
             userExam.setDailyTargetHours(daily);
             userExam.setWeeklyTargetHours(Math.round(daily * 7 * 10.0) / 10.0);
         }
-        return userExamRepository.save(userExam);
     }
 
     private void applyAutoStudyHours(UserExam userExam, LocalDate examDate) {
@@ -396,6 +428,8 @@ public class StudentController {
         }
         userExamRepository.saveAll(all);
         syncUserFromUserExam(user, activeUserExam);
+        cacheEvictionService.evictSyncBundle(user.getId());
+        cacheEvictionService.evictDashboard(user.getId());
     }
 
     private void syncUserFromUserExam(User user, UserExam userExam) {

@@ -15,6 +15,14 @@ public interface UserExamRepository extends JpaRepository<UserExam, Long> {
 
     List<UserExam> findByUserIdOrderByCreatedAtAsc(Long userId);
 
+    @Query("""
+        SELECT ue FROM UserExam ue
+        JOIN FETCH ue.exam
+        WHERE ue.user.id = :userId
+        ORDER BY ue.createdAt ASC
+        """)
+    List<UserExam> findByUserIdWithExamOrderByCreatedAtAsc(@Param("userId") Long userId);
+
     List<UserExam> findByUserIdOrderByExamDateAscCreatedAtAsc(Long userId);
 
     Optional<UserExam> findByUserIdAndExamId(Long userId, Long examId);

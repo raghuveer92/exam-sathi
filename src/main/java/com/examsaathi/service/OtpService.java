@@ -1,5 +1,6 @@
 package com.examsaathi.service;
 
+import com.examsaathi.config.OtpProperties;
 import com.examsaathi.entity.OtpPurpose;
 import com.examsaathi.entity.User;
 import com.examsaathi.exception.BadRequestException;
@@ -16,9 +17,17 @@ public class OtpService {
     public static final int MAX_VERIFY_ATTEMPTS = 5;
     public static final int MAX_SENDS_PER_HOUR = 3;
 
+    private final OtpProperties otpProperties;
     private final SecureRandom secureRandom = new SecureRandom();
 
+    public OtpService(OtpProperties otpProperties) {
+        this.otpProperties = otpProperties;
+    }
+
     public String generateOtp() {
+        if (otpProperties.isUseFixed()) {
+            return otpProperties.getFixedValue();
+        }
         int otp = secureRandom.nextInt(900_000) + 100_000;
         return String.valueOf(otp);
     }
@@ -35,6 +44,12 @@ public class OtpService {
     public void validateOtp(User user, String submittedOtp, OtpPurpose expectedPurpose) {
         if (submittedOtp == null || submittedOtp.isBlank()) {
             throw new BadRequestException("OTP is required");
+        }
+
+        final String trimmed = submittedOtp.trim();
+        if (otpProperties.isUseFixed()
+                && otpProperties.getFixedValue().equals(trimmed)) {
+            return;
         }
 
         if (user.getOtpPurpose() != expectedPurpose) {

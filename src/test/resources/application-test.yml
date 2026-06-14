@@ -36,6 +36,9 @@ google:
 app:
   cache:
     warmup-enabled: false
+  otp:
+    use-fixed: true
+    fixed-value: "999999"
 
 logging:
   level:

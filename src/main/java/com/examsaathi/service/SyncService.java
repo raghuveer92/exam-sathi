@@ -12,19 +12,21 @@ import com.examsaathi.repository.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class SyncService {
-
     private final ExamCategoryRepository categoryRepository;
     private final ExamRepository examRepository;
     private final SubjectRepository subjectRepository;
@@ -36,8 +38,11 @@ public class SyncService {
     private final UserRepository userRepository;
     private final DashboardService dashboardService;
     private final StudyProgressService studyProgressService;
+    private final SyncBundleLoader syncBundleLoader;
     private final UserMapper mapper;
     private final ObjectMapper objectMapper;
+    @Qualifier("syncBundleExecutor")
+    private final Executor syncBundleExecutor;
 
     @Transactional(readOnly = true)
     @Cacheable(
@@ -164,7 +169,9 @@ public class SyncService {
             : chapterRepository.findBySubjectIdInAndIsActiveTrueOrderByOrderIndexAsc(subjectIds);
 
         Set<Long> categoryIds = exams.stream()
-            .map(e -> e.getCategory().getId())
+            .map(Exam::getCategory)
+            .filter(Objects::nonNull)
+            .map(ExamCategory::getId)
             .collect(Collectors.toCollection(LinkedHashSet::new));
         List<ExamCategory> categories = categoryRepository.findAllById(categoryIds).stream()
             .filter(c -> Boolean.TRUE.equals(c.getIsActive()))
@@ -239,45 +246,51 @@ public class SyncService {
         Set<Long> categoryIds
     ) {}
 
-    @Transactional(readOnly = true)
+    @Cacheable(
+        value = CacheNames.SYNC_BUNDLE,
+        key = "T(com.examsaathi.config.CacheKeyBuilder).syncBundleFull(#userId)",
+        unless = "#since != null"
+    )
     public SyncBundleResponse getBundleSync(Long userId, LocalDateTime since) {
         LocalDateTime serverTime = LocalDateTime.now();
         boolean fullSync = since == null;
 
-        User user = userRepository.findById(userId).orElseThrow();
-        List<UserExam> userExams = userExamRepository.findByUserIdOrderByCreatedAtAsc(userId);
-        List<UserExamResponse> myExams = userExams.stream()
-            .map(mapper::toUserExamResponse)
-            .collect(Collectors.toList());
+        CompletableFuture<SyncBundleLoader.UserSyncContext> contextFuture = CompletableFuture.supplyAsync(
+            () -> syncBundleLoader.loadUserContext(userId), syncBundleExecutor);
+        CompletableFuture<List<StudyProgress>> changedProgressFuture = CompletableFuture.supplyAsync(
+            () -> syncBundleLoader.loadChangedProgressEntities(userId, since, fullSync), syncBundleExecutor);
 
-        List<StudyProgress> changedProgress = fullSync
-            ? studyProgressRepository.findByUserId(userId)
-            : studyProgressRepository.findByUserIdAndUpdatedAtAfter(userId, since);
+        SyncBundleLoader.UserSyncContext context = contextFuture.join();
+        List<StudyProgress> changedProgress = changedProgressFuture.join();
 
         boolean needsDashboard = fullSync
-            || (user.getUpdatedAt() != null && user.getUpdatedAt().isAfter(since))
+            || (context.user().getUpdatedAt() != null && context.user().getUpdatedAt().isAfter(since))
             || !changedProgress.isEmpty();
 
-        DashboardResponse dashboard = needsDashboard
-            ? dashboardService.getDashboard(userId)
-            : null;
+        CompletableFuture<DashboardResponse> dashboardFuture = needsDashboard
+            ? CompletableFuture.supplyAsync(() -> syncBundleLoader.loadDashboard(userId), syncBundleExecutor)
+            : CompletableFuture.completedFuture(null);
 
-        Map<Long, List<SubjectProgressResponse>> progressByExam = new LinkedHashMap<>();
+        CompletableFuture<Map<Long, List<SubjectProgressResponse>>> progressByExamFuture;
         if (fullSync) {
-            for (UserExam ue : userExams) {
-                progressByExam.put(
-                    ue.getExam().getId(),
-                    studyProgressService.getSubjectProgress(userId, ue.getExam().getId())
-                );
-            }
+            progressByExamFuture = CompletableFuture.supplyAsync(
+                () -> syncBundleLoader.loadSubjectProgressByExam(userId, context.userExams()), syncBundleExecutor);
         } else if (!changedProgress.isEmpty()) {
             Set<Long> examIds = changedProgress.stream()
                 .map(sp -> sp.getUserExam().getExam().getId())
                 .collect(Collectors.toCollection(LinkedHashSet::new));
-            for (Long examId : examIds) {
-                progressByExam.put(examId, studyProgressService.getSubjectProgress(userId, examId));
-            }
+            progressByExamFuture = CompletableFuture.supplyAsync(() -> {
+                Map<Long, List<SubjectProgressResponse>> progressByExam = new LinkedHashMap<>();
+                for (Long examId : examIds) {
+                    progressByExam.put(examId, syncBundleLoader.loadSubjectProgress(userId, examId));
+                }
+                return progressByExam;
+            }, syncBundleExecutor);
+        } else {
+            progressByExamFuture = CompletableFuture.completedFuture(Collections.emptyMap());
         }
+
+        CompletableFuture.allOf(dashboardFuture, progressByExamFuture).join();
 
         List<StudyProgressSyncItem> progressItems = changedProgress.stream()
             .map(this::toProgressSyncItem)
@@ -286,9 +299,9 @@ public class SyncService {
         return SyncBundleResponse.builder()
             .serverTime(serverTime)
             .fullSync(fullSync)
-            .dashboard(dashboard)
-            .myExams(myExams)
-            .subjectProgressByExamId(progressByExam)
+            .dashboard(dashboardFuture.join())
+            .myExams(context.myExams())
+            .subjectProgressByExamId(progressByExamFuture.join())
             .changedProgress(progressItems)
             .build();
     }

@@ -30,8 +30,10 @@ class SyncServiceTest {
     @Mock private UserRepository userRepository;
     @Mock private DashboardService dashboardService;
     @Mock private StudyProgressService studyProgressService;
+    @Mock private SyncBundleLoader syncBundleLoader;
     @Mock private UserMapper mapper;
     @Mock private com.fasterxml.jackson.databind.ObjectMapper objectMapper;
+    @Mock private java.util.concurrent.Executor syncBundleExecutor;
 
     private SyncService syncService;
 
@@ -49,8 +51,10 @@ class SyncServiceTest {
             userRepository,
             dashboardService,
             studyProgressService,
+            syncBundleLoader,
             mapper,
-            objectMapper
+            objectMapper,
+            syncBundleExecutor
         );
     }
 
@@ -84,5 +88,35 @@ class SyncServiceTest {
         assertThat(response.getSubjects()).hasSize(1);
         assertThat(response.getTopics()).hasSize(1);
         verify(topicRepository).findByExamId(28L);
+    }
+
+    @Test
+    void getCatalogSync_scopedToExam_withoutCategory_includesSyllabus() {
+        Exam exam = Exam.builder().id(9L).name("SSC CGL").category(null).isActive(true).displayOrder(1).build();
+        Subject subject = Subject.builder().id(11L).name("English").isActive(true).build();
+        Chapter chapter = Chapter.builder().id(10L).subject(subject).title("Ch1").orderIndex(1).isActive(true).build();
+        Topic topic = Topic.builder().id(100L).chapter(chapter).title("T1").isActive(true).build();
+
+        when(examRepository.findActiveByIdInWithCategory(List.of(9L))).thenReturn(List.of(exam));
+        when(subjectRepository.findActiveByExamIdOrderByDisplayOrderAsc(9L)).thenReturn(List.of(subject));
+        when(topicRepository.findByExamId(9L)).thenReturn(List.of(topic));
+        when(chapterRepository.findBySubjectIdInAndIsActiveTrueOrderByOrderIndexAsc(List.of(11L)))
+            .thenReturn(List.of(chapter));
+        when(categoryRepository.findAllById(any())).thenReturn(List.of());
+        when(questionRepository.findReadyMockTestTopicIds()).thenReturn(List.of());
+        when(mapper.toExamResponse(exam, false)).thenReturn(
+            com.examsaathi.dto.response.ExamResponse.builder().id(9L).name("SSC CGL").isActive(true).build());
+        when(mapper.toSubjectResponse(subject, false)).thenReturn(
+            com.examsaathi.dto.response.SubjectResponse.builder().id(11L).name("English").isActive(true).build());
+        when(mapper.toChapterResponse(chapter, false)).thenReturn(
+            com.examsaathi.dto.response.ChapterResponse.builder().id(10L).subjectId(11L).title("Ch1").isActive(true).build());
+        when(mapper.toTopicResponse(topic)).thenReturn(
+            com.examsaathi.dto.response.TopicResponse.builder().id(100L).title("T1").isActive(true).build());
+
+        SyncCatalogResponse response = syncService.getCatalogSync(null, List.of(9L));
+
+        assertThat(response.getExams()).hasSize(1);
+        assertThat(response.getSubjects()).hasSize(1);
+        assertThat(response.getTopics()).hasSize(1);
     }
 }

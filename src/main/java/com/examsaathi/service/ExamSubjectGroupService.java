@@ -64,6 +64,7 @@ public class ExamSubjectGroupService {
     }
 
     @Transactional(readOnly = true)
+    @Cacheable(value = CacheNames.EXAM_SUBJECT_GROUPS, key = "'userExam_' + #userExamId")
     public List<ExamSubjectGroupResponse> getGroupsByUserExam(Long userExamId) {
         UserExam userExam = userExamRepository.findById(userExamId)
             .orElseThrow(() -> new ResourceNotFoundException("User exam", userExamId));
@@ -200,6 +201,10 @@ public class ExamSubjectGroupService {
                     .subject(subject)
                     .build());
             }
+        }
+        cacheEvictionService.evictUserExamSubjectGroups(userExam.getId());
+        if (userExam.getUser() != null && userExam.getExam() != null) {
+            cacheEvictionService.evictUserSyncData(userExam.getUser().getId(), userExam.getExam().getId());
         }
     }
 

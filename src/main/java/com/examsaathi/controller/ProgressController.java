@@ -1,5 +1,6 @@
 package com.examsaathi.controller;
 
+import com.examsaathi.dto.request.BulkProgressUpdateRequest;
 import com.examsaathi.dto.request.ProgressUpdateRequest;
 import com.examsaathi.dto.request.StudyLogRequest;
 import com.examsaathi.dto.response.*;
@@ -37,6 +38,16 @@ public class ProgressController {
         User user = userRepository.findByEmail(userDetails.getUsername()).orElseThrow();
         studyProgressService.updateProgress(user.getId(), request);
         return ResponseEntity.ok(ApiResponse.success("Progress updated", null));
+    }
+
+    @PostMapping("/topics/bulk")
+    @Operation(summary = "Bulk update topic progress in one transaction")
+    public ResponseEntity<ApiResponse<BulkProgressUpdateResponse>> bulkUpdateTopicProgress(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @Valid @RequestBody BulkProgressUpdateRequest request) {
+        User user = userRepository.findByEmail(userDetails.getUsername()).orElseThrow();
+        return ResponseEntity.ok(ApiResponse.success(
+            studyProgressService.bulkUpdateProgress(user.getId(), request)));
     }
 
     @PostMapping("/log")

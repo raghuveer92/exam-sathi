@@ -30,8 +30,13 @@ public class FrontendApiIndexMigration implements CommandLineRunner {
 
     @Override
     public void run(String... args) {
+        applyMigration("db/migration/V9__frontend_api_indexes.sql");
+        applyMigration("db/migration/V10__sync_api_indexes.sql");
+    }
+
+    private void applyMigration(String classpathLocation) {
         try {
-            var resource = new ClassPathResource("db/migration/V9__frontend_api_indexes.sql");
+            var resource = new ClassPathResource(classpathLocation);
             var sql = FileCopyUtils.copyToString(
                 new InputStreamReader(resource.getInputStream(), StandardCharsets.UTF_8));
             var applied = 0;
@@ -43,9 +48,9 @@ public class FrontendApiIndexMigration implements CommandLineRunner {
                 jdbcTemplate.execute(trimmed);
                 applied++;
             }
-            log.info("Frontend API index migration applied ({} statements)", applied);
+            log.info("Applied {} ({} statements)", classpathLocation, applied);
         } catch (Exception e) {
-            log.warn("Frontend API index migration skipped or partial: {}", e.getMessage());
+            log.warn("Migration skipped or partial for {}: {}", classpathLocation, e.getMessage());
         }
     }
 

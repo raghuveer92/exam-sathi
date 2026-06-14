@@ -13,6 +13,14 @@ public final class CacheKeyBuilder {
         return "exam_" + id;
     }
 
+    public static String syncBundleFull(Long userId) {
+        return "user_" + userId + "_full";
+    }
+
+    public static String subjectProgress(Long userId, Long examId) {
+        return "user_" + userId + "_exam_" + examId;
+    }
+
     public static String syncCatalog(LocalDateTime since, List<Long> examIds) {
         if (since != null) {
             return "delta:" + since;

@@ -30,6 +30,7 @@ public class DashboardService {
     private final DailyStudyLogRepository studyLogRepository;
     private final UserExamRepository userExamRepository;
     private final ExamSubjectGroupService examSubjectGroupService;
+    private final StudyProgressService studyProgressService;
     private final UserMapper mapper;
 
     @Cacheable(value = CacheNames.DASHBOARD, key = "#userId")
@@ -48,7 +49,6 @@ public class DashboardService {
             .orElseThrow(() -> new RuntimeException("Active user exam not found"));
         Long examId = activeUserExam.getExam().getId();
         List<Long> visibleSubjectIds = examSubjectGroupService.getVisibleSubjectIds(activeUserExam);
-        List<ExamSubjectGroupService.ResolvedExamSubject> examSubjects = examSubjectGroupService.resolveVisibleSubjects(activeUserExam);
 
         // Today's stats
         LocalDateTime todayStart = LocalDate.now().atStartOfDay();
@@ -58,10 +58,9 @@ public class DashboardService {
         double todayHours = studyLogRepository.findByUserIdAndExamIdAndStudyDate(userId, examId, LocalDate.now())
             .map(DailyStudyLog::getHoursStudied).orElse(0.0);
 
-        // Subject progress
-        List<SubjectProgressResponse> subjectProgress = examSubjects.stream()
-            .map(es -> buildSubjectProgress(userId, examId, es))
-            .collect(Collectors.toList());
+        // Subject progress (batched queries via StudyProgressService)
+        List<SubjectProgressResponse> subjectProgress =
+            studyProgressService.buildSubjectProgressList(userId, examId, activeUserExam);
 
         // Weekly logs (last 7 days)
         List<DailyStudyLog> weeklyLogs = studyLogRepository
@@ -86,29 +85,6 @@ public class DashboardService {
                 .myExams(examCards)
             .subjectProgress(subjectProgress)
             .weeklyLogs(weeklyLogs.stream().map(mapper::toDailyLogResponse).collect(Collectors.toList()))
-            .build();
-    }
-
-    private SubjectProgressResponse buildSubjectProgress(Long userId, Long examId, ExamSubjectGroupService.ResolvedExamSubject resolvedSubject) {
-        ExamSubject examSubject = resolvedSubject.examSubject();
-        Subject subject = examSubject.getSubject();
-        int totalTopics = topicRepository.countBySubjectId(subject.getId());
-        int completed = progressRepository.countCompletedByUserAndExamAndSubject(userId, examId, subject.getId());
-        double percent = totalTopics > 0
-            ? Math.round((completed * 100.0 / totalTopics) * 10.0) / 10.0
-            : 0.0;
-        Double totalHours = topicRepository.sumEstimatedHoursBySubjectId(subject.getId());
-
-        return SubjectProgressResponse.builder()
-            .subjectId(subject.getId())
-            .subjectName(subject.getName())
-            .iconName(subject.getIconName())
-            .colorCode(subject.getColorCode())
-            .displayOrder(examSubject.getDisplayOrder())
-            .totalTopics(totalTopics)
-            .completedTopics(completed)
-            .completionPercent(percent)
-            .totalEstimatedHours(totalHours != null ? totalHours : 0.0)
             .build();
     }
 

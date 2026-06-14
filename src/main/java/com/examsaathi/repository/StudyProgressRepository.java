@@ -18,6 +18,32 @@ public interface StudyProgressRepository extends JpaRepository<StudyProgress, Lo
 
     List<StudyProgress> findByUserId(Long userId);
 
+    @Query("""
+        SELECT sp FROM StudyProgress sp
+        JOIN FETCH sp.topic t
+        JOIN FETCH t.chapter c
+        JOIN FETCH c.subject
+        JOIN FETCH sp.userExam ue
+        JOIN FETCH ue.exam
+        WHERE sp.user.id = :userId
+        """)
+    List<StudyProgress> findByUserIdWithDetails(@Param("userId") Long userId);
+
+    /** Completed topic counts grouped by subject for one user + exam. */
+    @Query("""
+        SELECT t.chapter.subject.id, COUNT(sp)
+        FROM StudyProgress sp
+        JOIN sp.topic t
+        WHERE sp.user.id = :userId
+        AND sp.userExam.exam.id = :examId
+        AND sp.isCompleted = true
+        AND t.chapter.subject.id IN :subjectIds
+        GROUP BY t.chapter.subject.id
+        """)
+    List<Object[]> countCompletedGroupedBySubjectId(@Param("userId") Long userId,
+                                                    @Param("examId") Long examId,
+                                                    @Param("subjectIds") List<Long> subjectIds);
+
     /** Count completed topics for a user in a subject */
     @Query("SELECT COUNT(sp) FROM StudyProgress sp WHERE sp.user.id = :userId " +
            "AND sp.userExam.exam.id = :examId " +

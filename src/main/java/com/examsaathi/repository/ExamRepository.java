@@ -39,7 +39,7 @@ public interface ExamRepository extends JpaRepository<Exam, Long> {
 
     @Query("""
         SELECT e FROM Exam e
-        JOIN FETCH e.category
+        LEFT JOIN FETCH e.category
         WHERE e.id IN :ids AND e.isActive = true
         ORDER BY e.displayOrder ASC, e.name ASC
         """)

@@ -1,5 +1,6 @@
 package com.examsaathi.service;
 
+import com.examsaathi.config.OtpProperties;
 import com.examsaathi.entity.OtpPurpose;
 import com.examsaathi.entity.User;
 import com.examsaathi.exception.BadRequestException;
@@ -17,7 +18,7 @@ class OtpServiceTest {
 
     @BeforeEach
     void setUp() {
-        otpService = new OtpService();
+        otpService = new OtpService(new OtpProperties());
     }
 
     @Test
