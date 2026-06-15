@@ -170,7 +170,10 @@ public class UserMapper {
             .topicCount(subject.getChapters().stream()
                 .mapToInt(c -> c.getTopics().size()).sum())
             .chapters(includeChapters
-                ? subject.getChapters().stream().map(c -> toChapterResponse(c, false)).collect(Collectors.toList())
+                ? subject.getChapters().stream()
+                    .sorted(Comparator.comparing(Chapter::getOrderIndex))
+                    .map(c -> toChapterResponse(c, false))
+                    .collect(Collectors.toList())
                 : Collections.emptyList())
             .build();
     }
@@ -187,7 +190,10 @@ public class UserMapper {
             .topicCount(chapter.getTopics().size())
             .updatedAt(chapter.getUpdatedAt())
             .topics(includeTopics
-                ? chapter.getTopics().stream().map(this::toTopicResponse).collect(Collectors.toList())
+                ? chapter.getTopics().stream()
+                    .sorted(Comparator.comparing(Topic::getOrderIndex))
+                    .map(this::toTopicResponse)
+                    .collect(Collectors.toList())
                 : Collections.emptyList())
             .build();
     }

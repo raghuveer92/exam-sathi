@@ -19,7 +19,7 @@ public interface ChapterRepository extends JpaRepository<Chapter, Long> {
     /** Eagerly fetch topics to avoid N+1 queries when building subject detail */
     @Query("SELECT DISTINCT c FROM Chapter c LEFT JOIN FETCH c.topics t " +
            "WHERE c.subject.id = :subjectId AND c.isActive = true " +
-           "ORDER BY c.orderIndex ASC")
+           "ORDER BY c.orderIndex ASC, t.orderIndex ASC")
     List<Chapter> findBySubjectIdWithTopics(@Param("subjectId") Long subjectId);
 
     List<Chapter> findByIsActiveTrueOrderByUpdatedAtAsc();

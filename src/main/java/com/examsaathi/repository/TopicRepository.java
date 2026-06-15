@@ -29,6 +29,7 @@ public interface TopicRepository extends JpaRepository<Topic, Long> {
         JOIN FETCH t.chapter ch
         JOIN FETCH ch.subject
         WHERE es.exam.id = :examId AND es.isActive = true AND s.isActive = true AND t.isActive = true
+        ORDER BY c.orderIndex ASC, t.orderIndex ASC
         """)
     List<Topic> findByExamIdWithHierarchy(@Param("examId") Long examId);
 
@@ -37,10 +38,15 @@ public interface TopicRepository extends JpaRepository<Topic, Long> {
            "JOIN es.subject s " +
            "JOIN s.chapters c " +
            "JOIN c.topics t " +
-           "WHERE es.exam.id = :examId AND es.isActive = true AND s.isActive = true AND t.isActive = true")
+           "WHERE es.exam.id = :examId AND es.isActive = true AND s.isActive = true AND t.isActive = true " +
+           "ORDER BY c.orderIndex ASC, t.orderIndex ASC")
     List<Topic> findByExamId(@Param("examId") Long examId);
 
-    @Query("SELECT DISTINCT t FROM Topic t WHERE t.chapter.subject.id IN :subjectIds AND t.isActive = true")
+    @Query("""
+        SELECT DISTINCT t FROM Topic t
+        WHERE t.chapter.subject.id IN :subjectIds AND t.isActive = true
+        ORDER BY t.chapter.orderIndex ASC, t.orderIndex ASC
+        """)
     List<Topic> findBySubjectIdIn(@Param("subjectIds") List<Long> subjectIds);
 
     /** Sum estimated hours for a subject */

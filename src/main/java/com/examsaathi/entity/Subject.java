@@ -58,6 +58,7 @@ public class Subject {
     private List<ExamSubject> examSubjects = new ArrayList<>();
 
     @OneToMany(mappedBy = "subject", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("orderIndex ASC")
     @Builder.Default
     private List<Chapter> chapters = new ArrayList<>();
 
