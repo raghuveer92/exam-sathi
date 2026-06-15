@@ -22,7 +22,7 @@ public interface TopicRepository extends JpaRepository<Topic, Long> {
 
     /** All topics for an exam with chapter and subject loaded */
     @Query("""
-        SELECT DISTINCT t FROM ExamSubject es
+        SELECT t FROM ExamSubject es
         JOIN es.subject s
         JOIN s.chapters c
         JOIN c.topics t
@@ -34,7 +34,7 @@ public interface TopicRepository extends JpaRepository<Topic, Long> {
     List<Topic> findByExamIdWithHierarchy(@Param("examId") Long examId);
 
     /** All topics for an exam */
-    @Query("SELECT DISTINCT t FROM ExamSubject es " +
+    @Query("SELECT t FROM ExamSubject es " +
            "JOIN es.subject s " +
            "JOIN s.chapters c " +
            "JOIN c.topics t " +
@@ -43,9 +43,10 @@ public interface TopicRepository extends JpaRepository<Topic, Long> {
     List<Topic> findByExamId(@Param("examId") Long examId);
 
     @Query("""
-        SELECT DISTINCT t FROM Topic t
-        WHERE t.chapter.subject.id IN :subjectIds AND t.isActive = true
-        ORDER BY t.chapter.orderIndex ASC, t.orderIndex ASC
+        SELECT t FROM Topic t
+        JOIN t.chapter c
+        WHERE c.subject.id IN :subjectIds AND t.isActive = true
+        ORDER BY c.orderIndex ASC, t.orderIndex ASC
         """)
     List<Topic> findBySubjectIdIn(@Param("subjectIds") List<Long> subjectIds);
 
