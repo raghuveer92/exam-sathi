@@ -50,7 +50,7 @@ public class DailyStudyLog {
     private Integer topicsCompleted = 0;
 
     /** Student explicitly marked this date as a break/no-study day. */
-    @Column(nullable = false)
+    @Column(name = "no_study_day")
     @Builder.Default
     private Boolean noStudyDay = false;
 

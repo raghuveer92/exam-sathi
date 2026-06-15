@@ -108,7 +108,7 @@ public class User {
     private LocalDateTime lastStudyDate;
 
     @Builder.Default
-    @Column(name = "daily_progress_reminder_enabled", nullable = false)
+    @Column(name = "daily_progress_reminder_enabled")
     private Boolean dailyProgressReminderEnabled = true;
 
     @Column(name = "daily_progress_reminder_time", length = 5)

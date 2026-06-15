@@ -32,6 +32,7 @@ public class FrontendApiIndexMigration implements CommandLineRunner {
     public void run(String... args) {
         applyMigration("db/migration/V9__frontend_api_indexes.sql");
         applyMigration("db/migration/V10__sync_api_indexes.sql");
+        applyMigration("db/migration/V11__daily_progress_reminder.sql");
     }
 
     private void applyMigration(String classpathLocation) {
