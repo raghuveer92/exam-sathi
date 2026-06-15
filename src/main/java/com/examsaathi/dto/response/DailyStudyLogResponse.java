@@ -12,4 +12,5 @@ public class DailyStudyLogResponse {
     private LocalDate studyDate;
     private Double hoursStudied;
     private Integer topicsCompleted;
+    private Boolean noStudyDay;
 }

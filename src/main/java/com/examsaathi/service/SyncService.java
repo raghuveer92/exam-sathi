@@ -2,10 +2,7 @@ package com.examsaathi.service;
 
 import com.examsaathi.config.CacheKeyBuilder;
 import com.examsaathi.config.CacheNames;
-import com.examsaathi.dto.request.ProgressUpdateRequest;
-import com.examsaathi.dto.request.StudyLogRequest;
-import com.examsaathi.dto.request.SyncPushItem;
-import com.examsaathi.dto.request.SyncPushRequest;
+import com.examsaathi.dto.request.*;
 import com.examsaathi.dto.response.*;
 import com.examsaathi.entity.*;
 import com.examsaathi.repository.*;
@@ -328,6 +325,15 @@ public class SyncService {
             case "LOG_STUDY" -> {
                 StudyLogRequest req = objectMapper.convertValue(payload, StudyLogRequest.class);
                 studyProgressService.logStudyHours(userId, req);
+            }
+            case "NO_STUDY_DAY" -> {
+                NoStudyDayRequest req = objectMapper.convertValue(payload, NoStudyDayRequest.class);
+                studyProgressService.markNoStudyDay(userId, req);
+            }
+            case "DAILY_PROGRESS_REMINDER" -> {
+                DailyProgressReminderPreferenceRequest req =
+                    objectMapper.convertValue(payload, DailyProgressReminderPreferenceRequest.class);
+                studyProgressService.saveReminderPreference(userId, req);
             }
             case "STUDY_HOURS" -> {
                 Double hours = payload.get("dailyTargetHours") instanceof Number n

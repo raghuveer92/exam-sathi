@@ -2,10 +2,13 @@ package com.examsaathi.service;
 
 import com.examsaathi.dto.request.BulkProgressUpdateRequest;
 import com.examsaathi.dto.request.BulkTopicProgressItem;
+import com.examsaathi.dto.request.DailyProgressReminderPreferenceRequest;
+import com.examsaathi.dto.request.NoStudyDayRequest;
 import com.examsaathi.dto.request.StudyLogRequest;
 import com.examsaathi.dto.request.ProgressUpdateRequest;
 import com.examsaathi.dto.response.BulkProgressUpdateResponse;
 import com.examsaathi.dto.response.ChapterWithProgressResponse;
+import com.examsaathi.dto.response.DailyProgressReminderPreferenceResponse;
 import com.examsaathi.dto.response.DailyStudyLogResponse;
 import com.examsaathi.dto.response.SubjectDetailResponse;
 import com.examsaathi.dto.response.SubjectProgressResponse;
@@ -171,6 +174,11 @@ public class StudyProgressService {
         int existingTopics = log.getTopicsCompleted() != null ? log.getTopicsCompleted() : 0;
         int requestTopics = request.getTopicsCompleted() != null ? request.getTopicsCompleted() : 0;
         log.setTopicsCompleted(Math.max(0, existingTopics + requestTopics));
+        if (request.getNoStudyDay() != null) {
+            log.setNoStudyDay(request.getNoStudyDay());
+        } else if (request.getHoursStudied() > 0 || requestTopics > 0) {
+            log.setNoStudyDay(false);
+        }
         studyLogRepository.save(log);
 
         // Update last study date and streak
@@ -181,6 +189,44 @@ public class StudyProgressService {
         DailyStudyLogResponse response = mapper.toDailyLogResponse(log);
         cacheEvictionService.evictUserSyncData(userId, activeExamId);
         return response;
+    }
+
+    @Transactional(readOnly = true)
+    public DailyProgressReminderPreferenceResponse getReminderPreference(Long userId) {
+        User user = userRepository.findById(userId).orElseThrow();
+        return DailyProgressReminderPreferenceResponse.builder()
+            .enabled(user.getDailyProgressReminderEnabled())
+            .reminderTime(user.getDailyProgressReminderTime() != null
+                ? user.getDailyProgressReminderTime()
+                : "22:00")
+            .build();
+    }
+
+    @Transactional
+    public DailyProgressReminderPreferenceResponse saveReminderPreference(
+            Long userId,
+            DailyProgressReminderPreferenceRequest request) {
+        User user = userRepository.findById(userId).orElseThrow();
+        user.setDailyProgressReminderEnabled(request.getEnabled());
+        user.setDailyProgressReminderTime(request.getReminderTime());
+        userRepository.save(user);
+        return getReminderPreference(userId);
+    }
+
+    @Transactional
+    public DailyStudyLogResponse markNoStudyDay(Long userId, NoStudyDayRequest request) {
+        User user = userRepository.findById(userId).orElseThrow();
+        if (user.getSelectedExam() == null) {
+            throw new IllegalStateException("No active exam selected");
+        }
+        Exam examRef = Exam.builder().id(user.getSelectedExam().getId()).build();
+        DailyStudyLog log = findOrCreateDailyLog(user, examRef, request.getStudyDate());
+        log.setHoursStudied(log.getHoursStudied() != null ? log.getHoursStudied() : 0.0);
+        log.setTopicsCompleted(log.getTopicsCompleted() != null ? log.getTopicsCompleted() : 0);
+        log.setNoStudyDay(request.getNoStudyDay() == null || request.getNoStudyDay());
+        saveDailyLogHandlingLegacyUniqueConstraint(log);
+        cacheEvictionService.evictUserSyncData(userId, examRef.getId());
+        return mapper.toDailyLogResponse(log);
     }
 
     /** Get weekly study logs for a student */
@@ -474,6 +520,7 @@ public class StudyProgressService {
         Exam examRef = Exam.builder().id(examId).build();
         DailyStudyLog log = findOrCreateDailyLog(user, examRef, date);
         log.setTopicsCompleted((log.getTopicsCompleted() != null ? log.getTopicsCompleted() : 0) + count);
+        log.setNoStudyDay(false);
         saveDailyLogHandlingLegacyUniqueConstraint(log);
     }
 

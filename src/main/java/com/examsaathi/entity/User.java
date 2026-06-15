@@ -107,6 +107,14 @@ public class User {
 
     private LocalDateTime lastStudyDate;
 
+    @Builder.Default
+    @Column(name = "daily_progress_reminder_enabled", nullable = false)
+    private Boolean dailyProgressReminderEnabled = true;
+
+    @Column(name = "daily_progress_reminder_time", length = 5)
+    @Builder.Default
+    private String dailyProgressReminderTime = "22:00";
+
     @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(
         name = "user_roles",

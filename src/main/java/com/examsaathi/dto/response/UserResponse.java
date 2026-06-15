@@ -27,6 +27,8 @@ public class UserResponse {
     private Boolean isEmailVerified;
     private Integer studyStreakDays;
     private LocalDateTime lastStudyDate;
+    private Boolean dailyProgressReminderEnabled;
+    private String dailyProgressReminderTime;
     private List<String> roles;
     private Long activeUserExamId;
     private List<UserExamResponse> userExams;

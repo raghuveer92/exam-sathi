@@ -49,6 +49,11 @@ public class DailyStudyLog {
     @Builder.Default
     private Integer topicsCompleted = 0;
 
+    /** Student explicitly marked this date as a break/no-study day. */
+    @Column(nullable = false)
+    @Builder.Default
+    private Boolean noStudyDay = false;
+
     @CreatedDate
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;

@@ -18,4 +18,6 @@ public class StudyLogRequest {
 
     @Min(0)
     private Integer topicsCompleted = 0;
+
+    private Boolean noStudyDay = false;
 }

@@ -74,6 +74,8 @@ public class UserMapper {
             .isEmailVerified(user.getIsEmailVerified())
             .studyStreakDays(user.getStudyStreakDays())
             .lastStudyDate(user.getLastStudyDate())
+            .dailyProgressReminderEnabled(user.getDailyProgressReminderEnabled())
+            .dailyProgressReminderTime(user.getDailyProgressReminderTime())
             .roles(user.getRoles().stream().map(r -> r.getName().name()).collect(Collectors.toList()))
             .activeUserExamId(activeUserExamId)
             .userExams(userExams)
@@ -219,6 +221,7 @@ public class UserMapper {
             .studyDate(log.getStudyDate())
             .hoursStudied(log.getHoursStudied())
             .topicsCompleted(log.getTopicsCompleted())
+            .noStudyDay(log.getNoStudyDay())
             .build();
     }
 }

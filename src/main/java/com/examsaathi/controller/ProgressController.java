@@ -1,6 +1,8 @@
 package com.examsaathi.controller;
 
 import com.examsaathi.dto.request.BulkProgressUpdateRequest;
+import com.examsaathi.dto.request.DailyProgressReminderPreferenceRequest;
+import com.examsaathi.dto.request.NoStudyDayRequest;
 import com.examsaathi.dto.request.ProgressUpdateRequest;
 import com.examsaathi.dto.request.StudyLogRequest;
 import com.examsaathi.dto.response.*;
@@ -67,6 +69,35 @@ public class ProgressController {
         User user = userRepository.findByEmail(userDetails.getUsername()).orElseThrow();
         return ResponseEntity.ok(ApiResponse.success(
             studyProgressService.getWeeklyLogs(user.getId())));
+    }
+
+    @GetMapping("/reminder-preference")
+    @Operation(summary = "Get daily progress reminder preference")
+    public ResponseEntity<ApiResponse<DailyProgressReminderPreferenceResponse>> getReminderPreference(
+            @AuthenticationPrincipal UserDetails userDetails) {
+        User user = userRepository.findByEmail(userDetails.getUsername()).orElseThrow();
+        return ResponseEntity.ok(ApiResponse.success(
+            studyProgressService.getReminderPreference(user.getId())));
+    }
+
+    @PutMapping("/reminder-preference")
+    @Operation(summary = "Save daily progress reminder preference")
+    public ResponseEntity<ApiResponse<DailyProgressReminderPreferenceResponse>> saveReminderPreference(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @Valid @RequestBody DailyProgressReminderPreferenceRequest request) {
+        User user = userRepository.findByEmail(userDetails.getUsername()).orElseThrow();
+        return ResponseEntity.ok(ApiResponse.success(
+            studyProgressService.saveReminderPreference(user.getId(), request)));
+    }
+
+    @PostMapping("/no-study-day")
+    @Operation(summary = "Mark a date as no-study day")
+    public ResponseEntity<ApiResponse<DailyStudyLogResponse>> markNoStudyDay(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @Valid @RequestBody NoStudyDayRequest request) {
+        User user = userRepository.findByEmail(userDetails.getUsername()).orElseThrow();
+        return ResponseEntity.ok(ApiResponse.success(
+            studyProgressService.markNoStudyDay(user.getId(), request)));
     }
 
     @GetMapping("/subjects/{examId}")
